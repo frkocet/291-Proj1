@@ -1,4 +1,4 @@
-;copy paste from PWM_demo.asm (sets up PWM using timer 2 interrupts)
+;copy paste from PWM_demo.asm and feb 9 slides (sets up PWM using timer 2 interrupts)
 $NOLIST
 $MODN76E003
 $LIST
