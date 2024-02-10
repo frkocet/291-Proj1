@@ -24,7 +24,7 @@ DSEG ;variable initialization
 fsm1_state: ds 1 ;state variable for fsm1
 tempsoak: ds 1 ;150C +/- 20C
 timesoak: ds 1 ;soak time <= 60s
-temprefl: ds 1 ;240C > temp >= 220C
+temprefl: ds 1 ;240C > temp >= 220
 timerefl: ds 1 ;45s > 
 
 ;need auto termination !!
@@ -55,4 +55,28 @@ fsm1_state1:
     mov fsm1_state, #2
 fsm1_state1_done:
 ljmp fsm1
+
+fsm1_state2: 
+    cjne a, #2, fsm1_state3
+    mov pwm, #20
+    mov a, timesoak
+    clr c
+    subb a, sec
+    jnc fsm1_state2_done
+    mov fsm1_state, #3
+fsm1_state2_done:
+    ljmp fsm1
+
+fsm1_state3:
+    cjne a, #3, fsm1_state4
+    mov pwm, #100
+    mov sec, #0
+    mov a, temprefl
+    clr c
+    subb a, sec
+    jnc fsm1_state3_done
+    mov fsm1_state, #4
+fsm1_state3_done:
+    ljmp fsm1
+
 
