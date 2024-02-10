@@ -47,7 +47,7 @@ fsm1_state0_done:
 fsm1_state1:
     cjne a, #1, fsm1_state2
     mov pwm, #100
-    mov sec, #0
+    mov sec, #0 ; sec is most likely connected to timer 2 isr
     mov a, tempsoak
     clr c
     subb a, temp
