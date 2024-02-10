@@ -22,7 +22,7 @@ fsm1_state0:
     jnb pb, $ ;debounce
     mov fsm1_state, #1 
 fsm1_state0_done: 
-    ljmp fsm1; goes to next state in fsm1, slides ljmp to fsm2 
+    ljmp fsm1; should go to next code segment, ie. display
 
 fsm1_state1:
     cjne a, #1, fsm1_state2
