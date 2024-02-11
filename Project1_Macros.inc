@@ -146,54 +146,57 @@ ADC_to_pbdone:
 
 ;------------------------------------------------------;
 ; CounterSet                                           ;
-; function: set counters                               ;
+; function: set counters, doesn't allow dec < 0        ;
 ; parameters: button to dec/inc, variable to inc/dec,  ;
 ; label to branch to if button to dec/inc not pushed   ;
 ;------------------------------------------------------;
 CounterSet MAC
-    jb %0, %2
-    Wait_Milli_Seconds(#50) ; debounce
-    jb %0, %2
+    CounterPush%M:
+        jb %0, %2
+        Wait_Milli_Seconds(#50) ; debounce
+        jb %0, %2
 
-    jb incdecpb, increase%M
-    dec %1
-    sjmp endCounterSet%M
+        jb incdecpb, increase%M
+        mov a, %1
+        jz endCounterSet%M
+        dec %1
+        sjmp endCounterSet%M
 increase%M:
     inc %1
 endCounterSet%M:
 ENDMAC
 
-;-----------------------------------------------------------;
-; CounterCheck (WIP: Still need to add reset for low range) ;
-; Checks the counters, resets them if they're out of range  ;
-;-----------------------------------------------------------;
+;-----------------------------------------------------------------;
+; CounterCheck                                                    ;
+; Checks the counters, resets them if they're out of upper range  ;
+;-----------------------------------------------------------------;
 
 CounterCheck:
     TempSoakCheck:
         mov a, #0x150
         subb a, tempsoak
-        jnz a, TimeSoakCheck
+        jnz TimeSoakCheck
         mov a, #0x0
         mov tempsoak, a
 
     TimeSoakCheck:
         mov a, #0x60
         subb a, timesoak
-        jnz a, TempRflCheck
+        jnz TempRflCheck
         mov a, #0x0
         mov timesoak, a
 
     TempRflCheck:
         mov a, #0x220
         subb a, temprfl
-        jnz a, TimeRflCheck
+        jnz TimeRflCheck
         mov a, #0x150
         mov tempfl, a
 
     TimeRflCheck:
         mov a, #0x45
         subb a, timerfl
-        jnz a, CounterCheckDone
+        jnz CounterCheckDone
         mov a, #0x0
         mov timerfl, a
 
