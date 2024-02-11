@@ -1,62 +1,105 @@
-;copy paste from feb 9 slides
-
-DSEG ;variable initialization
-fsm1_state: ds 1 ;state variable for fsm1
-tempsoak: ds 1 ;150C +/- 20C
-timesoak: ds 1 ;soak time <= 60s
-temprefl: ds 1 ;240C > temp >= 220
-timerefl: ds 1 ;45s > 
+DSEG ;variable initialization ; ADRESSES DIFFERENT FROM MAIN
+fsm1_state: ds 5 ;state variable for fsm1
+tempsoak:   ds 4 ;150C +/- 20C
+timesoak:   ds 3 ;soak time <= 60s
+temprefl:   ds 2 ;240C > temp >= 220
+timerefl:   ds 1 ;45s > 
 
 ;need auto termination !!
 ;maybe in state 1, track the time and temp, jump if != 50C in 60s
 ;ie. set bit if auto termination cond met, and use jb to branch to state 0
+;ALL STATES/VARIABLES ALL LOWERCASE
 
+
+
+;------------------
 fsm1:
 ;in case we have other fsms
-    mov a, fsm1_state
+    mov a, fsm1_state   ;movs the variable vaule of what state we are in to the accumulator
 
-fsm1_state0:
-    cjne a, #0, fsm1_state1
+
+;------------------
+chillin: ;state 0, "waiting" for a button push to start, 
+         ;this is when the reflow profile need to be settable elsewhere
+    cjne a, #0, ramp2soak       ;compare #0 and current state number (in a) jump to next state if not meant to be in state 0
     mov pwm, #0
-    ;jb pb, fsm1_state0_done
-    jnb pb, $ ;debounce
-    mov fsm1_state, #1 
-fsm1_state0_done: 
-    ljmp fsm1; should go to next code segment, ie. display
+    ;update variables with buttons
+    update_tempsoak (shift_button, TEMPSOAK_BUTTON)
+    update_timesoak (shift_button, TIMESOAK_BUTTON)
+    update_temprefl (shift_button, TEMPREFL_BUTTON)
+    update_tempsoak (shift_button, TIMEREFL_BUTTON)
+    ;display updated values
+    ;CALL SOMEMACRO TO DISPLAY VALUES
+    
+    jb panic_button, chillin_done   ;keep looping if button not pushed, using panic button as on/off
+    jnb panic_button, $                 ;debounce
+    mov fsm1_state, #1                  ;set state to soak
+chillin_done:   
+    ljmp fsm1         ;jump to check buttons
 
-fsm1_state1:
-    cjne a, #1, fsm1_state2
+
+;------------------
+ramp2soak: ;Heat up from 0, leave if temp<50 after 1min -> error
+           ;leave after temp="tempsoak" -> soak
+    cjne a, #1, soak
     mov pwm, #100
-    mov sec, #0 ; sec is most likely connected to timer 2 isr
+    mov sec, #0         
     mov a, tempsoak
     clr c
     subb a, temp
-    jnc fsm1_state1_done
-    mov fsm1_state, #2
-fsm1_state1_done:
-ljmp fsm1
+    jnc ramp2soak_done
+    mov fsm1_state, #2  ;set state to soak
+ramp2soak_done:
+    ljmp fsm1           ;change all fsm1 labels to next peice of code, currently fsm1 to loop for testing
 
-fsm1_state2: 
-    cjne a, #2, fsm1_state3
+;------------------
+soak: ;Keep temp relatively stable, leave after "timesoak" seconds -> ramp2peak
+    cjne a, #2, ramp2peak
     mov pwm, #20
     mov a, timesoak
     clr c
     subb a, sec
-    jnc fsm1_state2_done
-    mov fsm1_state, #3
-fsm1_state2_done:
+    jnc soak_done
+    mov fsm1_state, #3  ;set state to ramp2peak
+soak_done:
     ljmp fsm1
 
-fsm1_state3:
-    cjne a, #3, fsm1_state4
+;------------------
+ramp2peak:
+    cjne a, #3, reflow
     mov pwm, #100
     mov sec, #0
     mov a, temprefl
     clr c
     subb a, sec
-    jnc fsm1_state3_done
+    jnc ramp2peak_done
     mov fsm1_state, #4
-fsm1_state3_done:
+ramp2peak_done:
     ljmp fsm1
 
+;------------------
+reflow:
+    cjne a, #4, NEXT_STATE
+    ;stuff happening in this state
+    jnc reflow_done
+    mov fsm1_state, #5
+reflow_done:
+    ljmp fsm1
 
+;------------------
+cooling:
+    cjne a, #5, NEXT_STATE
+    ;stuff for this state
+    jnc cooling_done
+    mov fsm_state, #6 ;change from #6 as #6 is error state
+cooling_done:
+    ljmp fsm1
+
+;------------------
+error: ;exited on error, stuck in this state untill "panic button" pressed
+    ;display some error message
+    jb panic_button, error ;if "panic_button" not pressed stuck here
+    jnb panic_button, $    ;debounce
+    mov fsm_state, #0 ;go back to chillin state
+error_done:
+    ljmp fsm1
