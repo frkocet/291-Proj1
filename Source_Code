@@ -26,7 +26,7 @@ $LIST
 DSEG at 0x30
   ; These register definitions needed by 'math32.inc'
 	temp:     ds 8
-  count:    ds 7
+  	count:    ds 7
 	last:     ds 6
 	x:   	    ds 4
 	y:        ds 4
