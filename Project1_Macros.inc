@@ -14,76 +14,76 @@
 ;
 
 cseg
-
-;---------------------------------;
-; LCD MUXED BUTTONS               ;
-; connected to LCD pins**         ;
-;---------------------------------;
-LCD_MPB: ;button mux, checks if button pressed or not
-	; Set variables to 1: 'no push button pressed'
-	setb PB0 
-	setb PB1
-	setb PB2
-	setb PB3
-	setb PB4
-	; The input pin used to check set to '1'
-	setb P1.5
-	
-	; Check if any push button is pressed
-	clr P0.0
-	clr P0.1
-	clr P0.2
-	clr P0.3
-	clr P1.3
-	jb P1.5, LCD_PB_Done
-
-	; Debounce
-	mov R2, #50
-	lcall waitms
-	jb P1.5, LCD_PB_Done
-
-	; Set the LCD data pins to logic 1
-	setb P0.0
-	setb P0.1
-	setb P0.2
-	setb P0.3
-	setb P1.3
-	
-	; Check the push buttons one by one
-	clr P1.3 ;if data pin = 0 and button pressed, p1.5 = 0 
-	mov c, P1.5
-	mov PB4, c ;if p1.5 = 0, pb4 pressed
-	setb P1.3
-
-	clr P0.0 ;if data pin = 0, button not pressed, p1.5 = 1
-	mov c, P1.5
-	mov PB3, c ;if p1.5 = 1, pb3 not pressed
-	setb P0.0
-	
-	clr P0.1
-	mov c, P1.5
-	mov PB2, c
-	setb P0.1
-	
-	clr P0.2
-	mov c, P1.5
-	mov PB1, c
-	setb P0.2
-	
-	clr P0.3
-	mov c, P1.5
-	mov PB0, c
-	setb P0.3
-
-    LCD_MPB: 
-        ret
     
 ;----------------------------------------------------------;
 ; ADC MUXED BUTTONS                                        ;
-; when button pressed, adc reading changes to 1/8 step V   ;
+; when button pressed, adc reading changes to 1/7 step V   ;
 ; calculates which button pressed based on voltage reading ;
-; all buttons connected to pin                             ;
+; all buttons connected to pin 1.7                         ;
 ;----------------------------------------------------------;
+
+;------------------------------------------------------------------------------------------------;
+; INITIALIZATON:                                                                                 ;
+; $NOLIST                                                                                        ;
+; $MODN76E003                                                                                    ;
+; $LIST                                                                                          ;
+;                                                                                                ;
+; CLK               EQU 16600000 ; Microcontroller system frequency in Hz                        ;
+; BAUD              EQU 115200 ; Baud rate of UART in bps                                        ;
+; TIMER1_RELOAD     EQU (0x100-(CLK/(16*BAUD)))                                                  ;
+; TIMER0_RELOAD_1MS EQU (0x10000-(CLK/1000))                                                     ;
+;                                                                                                ;
+;                                                                                                ;
+; BSEG                                                                                           ;
+; **These eight bit variables store the value of the pushbuttons after calling 'ADC_to_PB' below ;
+; powerpb: dbit 1                                                                                ;
+; timesoak_pb: dbit 1                                                                            ;
+; tempsoak_pb: dbit 1                                                                            ;
+; timerfl_pb: dbit 1                                                                             ;
+; temprfl_pb: dbit 1                                                                             ;
+; incpb: dbit 1                                                                                  ;
+; decpb: dbit 1                                                                                  ;
+; PB7: dbit 1                                                                                    ;
+;                                                                                                ;
+; CSEG                                                                                           ;
+; Init_All:                                                                                      ;
+; 	; Configure all the pins for biderectional I/O                                               ;
+; 	mov	P3M1, #0x00                                                                              ;
+; 	mov	P3M2, #0x00                                                                              ;
+; 	mov	P1M1, #0x00                                                                              ;
+; 	mov	P1M2, #0x00                                                                              ;
+; 	mov	P0M1, #0x00                                                                              ;
+; 	mov	P0M2, #0x00                                                                              ;
+; 	                                                                                             ;
+; 	orl	CKCON, #0x10 ; CLK is the input for timer 1                                              ;
+; 	orl	PCON, #0x80 ; Bit SMOD=1, double baud rate                                               ;
+; 	mov	SCON, #0x52                                                                              ;
+; 	anl	T3CON, #0b11011111                                                                       ;
+; 	anl	TMOD, #0x0F ; Clear the configuration bits for timer 1                                   ;
+; 	orl	TMOD, #0x20 ; Timer 1 Mode 2                                                             ;
+; 	mov	TH1, #TIMER1_RELOAD ; TH1=TIMER1_RELOAD;                                                 ;
+; 	setb TR1                                                                                     ;
+; 	                                                                                             ;
+; 	; Using timer 0 for delay functions.  Initialize here:                                       ;
+; 	clr	TR0 ; Stop timer 0                                                                       ;
+; 	orl	CKCON,#0x08 ; CLK is the input for timer 0                                               ;
+; 	anl	TMOD,#0xF0 ; Clear the configuration bits for timer 0                                    ;
+; 	orl	TMOD,#0x01 ; Timer 0 in Mode 1: 16-bit timer                                             ;
+; 	                                                                                             ;
+; 	; Initialize and start the ADC:                                                              ;
+; 	                                                                                             ;
+; 	; AIN0 is connected to P1.7.  Configure P1.7 as input.                                       ;
+; 	orl	P1M1, #0b10000000                                                                        ;
+; 	anl	P1M2, #0b01111111                                                                        ;
+; 	                                                                                             ;
+; 	; AINDIDS select if some pins are analog inputs or digital I/O:                              ;
+; 	mov AINDIDS, #0x00 ; Disable all analog inputs                                               ;
+; 	orl AINDIDS, #0b00000001 ; Using AIN0                                                        ;
+; 	orl ADCCON1, #0x01 ; Enable ADC                                                              ;
+; 	                                                                                             ;
+; 	ret                                                                                          ;
+;------------------------------------------------------------------------------------------------;
+    
     ADC_to_PB:
 	anl ADCCON0, #0xF0
 	orl ADCCON0, #0x00 ; Select AIN0
@@ -92,91 +92,80 @@ LCD_MPB: ;button mux, checks if button pressed or not
 	setb ADCS   ; ADC start trigger signal
     jnb ADCF, $ ; Wait for conversion complete
 
-	setb PB7
-	setb PB6
-	setb PB5
-	setb PB4
-	setb PB3
-	setb PB2
-	setb PB1
-	setb PB0
+	setb decpb
+	setb incpb
+	setb temprfl_pb
+	setb timerfl_pb
+	setb tempsoak_pb
+	setb timesoak_pb
+	setb powerpb
 	
-	; Check PB7
-
+	;Check decpb
     ;goes from button resulting in highest voltage to lowest voltage
 
-ADC_to_PB_L7:
+ADC_to_decpb:
 	clr c
-	mov a, ADCRH ; ADRH: ADC result high bit, since all lower bits are the same between each voltage val
-	subb a, #0xf0 ;if 0xf0 > ADRH, carry = 1 (negative num), PB7 not pressed
-	jc ADC_to_PB_L6
-	clr PB7
+	mov a, ADCRH ; ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
+	subb a, #0xFF ;if 0xFF > ADRH, carry = 1 (negative num), PB7 not pressed
+	jc ADC_to_incpb
+	clr decpb
 	ret
 
-	; Check PB6
-ADC_to_PB_L6:
+	; Check incpb
+ADC_to_incpb:
 	clr c
 	mov a, ADCRH
-	subb a, #0xd0
-	jc ADC_to_PB_L5
-	clr PB6
+	subb a, #0xDA
+	jc ADC_to_temprfl_pb
+	clr incpb
 	ret
 
-	; Check PB5
-ADC_to_PB_L5:
+	; Check temprfl_pb
+ADC_to_temprfl_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0xb0
-	jc ADC_to_PB_L4
-	clr PB5
+	subb a, #0xB6
+	jc ADC_to_timerfl_pb
+	clr temprfl_pb
 	ret
 
-	; Check PB4
-ADC_to_PB_L4:
+	; Check timerfl_pb
+ADC_to_timerfl_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x90
-	jc ADC_to_PB_L3
-	clr PB4
+	subb a, #0x91
+	jc ADC_to_tempsoak_pb
+	clr timerfl_pb
 	ret
 
-	; Check PB3
-ADC_to_PB_L3:
+	; Check tempsoak_pb
+ADC_to_tempsoak_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x70
-	jc ADC_to_PB_L2
-	clr PB3
+	subb a, #0x6D
+	jc ADC_to_timesoak_pb
+	clr tempsoak_pb
 	ret
 
-	; Check PB2
-ADC_to_PB_L2:
+	; Check timesoak_pb
+ADC_to_timesoak_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x50
-	jc ADC_to_PB_L1
-	clr PB2
+	subb a, #0x48
+	jc ADC_to_powerpb
+	clr timesoak_pb
 	ret
 
-	; Check PB1
-ADC_to_PB_L1:
+	; Check powerpb
+ADC_to_powerpb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x30
-	jc ADC_to_PB_L0
-	clr PB1
-	ret
-
-	; Check PB0
-ADC_to_PB_L0:
-	clr c
-	mov a, ADCRH
-	subb a, #0x10
-	jc ADC_to_PB_Done
-	clr PB0
+	subb a, #0x24
+	jc ADC_to_pbdone
+	clr powerpb
 	ret
 	
-ADC_to_PB_Done:
+ADC_to_pbdone:
 	; No pushbutton pressed	
 	ret
 
