@@ -1,18 +1,3 @@
-;  N76E003 pinout:
-;                               -------
-;       PWM2/IC6/T0/AIN4/P0.5 -|1    20|- P0.4/AIN5/STADC/PWM3/IC3
-;               TXD/AIN3/P0.6 -|2    19|- P0.3/PWM5/IC5/AIN6/           PB0
-;               RXD/AIN2/P0.7 -|3    18|- P0.2/ICPCK/OCDCK/RXD_1/[SCL]  PB1
-;                    RST/P2.0 -|4    17|- P0.1/PWM4/IC4/MISO/           PB2
-;        INT0/OSCIN/AIN1/P3.0 -|5    16|- P0.0/PWM3/IC3/MOSI/T1/        PB3
-;              INT1/AIN0/P1.7 -|6    15|- P1.0/PWM2/IC2/SPCLK
-;                         GND -|7    14|- P1.1/PWM1/IC1/AIN7/CLO
-;[SDA]/TXD_1/ICPDA/OCDDA/P1.6 -|8    13|- P1.2/PWM0/IC0
-;                         VDD -|9    12|- P1.3/SCL/[STADC]/             PB4
-;            PWM5/IC7/SS/P1.5 -|10   11|- P1.4/SDA/FB/PWM1
-;                               -------
-;
-
 cseg
     
 ;----------------------------------------------------------;
@@ -84,7 +69,12 @@ cseg
 ; 	ret                                                                                          ;
 ;------------------------------------------------------------------------------------------------;
     
-    ADC_to_PB:
+;---------------------------------------;
+; ADC_to_PB                             ;
+; stores values of pb connected to AIN0 ;
+;---------------------------------------;
+
+ADC_to_PB:
 	anl ADCCON0, #0xF0
 	orl ADCCON0, #0x00 ; Select AIN0
 	
@@ -92,81 +82,124 @@ cseg
 	setb ADCS   ; ADC start trigger signal
     jnb ADCF, $ ; Wait for conversion complete
 
-	setb decpb
-	setb incpb
-	setb temprfl_pb
+	setb incdecpb ; 1 if increasing, 0 if decreasing
+    ;0 if setting time/temp, 1 if not
+	setb temprfl_pb 
 	setb timerfl_pb
 	setb tempsoak_pb
 	setb timesoak_pb
 	setb powerpb
 	
-	;Check decpb
-    ;goes from button resulting in highest voltage to lowest voltage
+    ;goes from buttons w highest voltage to lowest voltage
 
-ADC_to_decpb:
+	; Check incdecpb
+ADC_to_incdecpb:
 	clr c
-	mov a, ADCRH ; ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
+	mov a, ADCRH ;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
 	subb a, #0xFF ;if 0xFF > ADRH, carry = 1 (negative num), PB7 not pressed
-	jc ADC_to_incpb
-	clr decpb
-	ret
-
-	; Check incpb
-ADC_to_incpb:
-	clr c
-	mov a, ADCRH
-	subb a, #0xDA
 	jc ADC_to_temprfl_pb
-	clr incpb
-	ret
+	clr incdecpb
 
 	; Check temprfl_pb
 ADC_to_temprfl_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0xB6
+	subb a, #0xD4
 	jc ADC_to_timerfl_pb
 	clr temprfl_pb
-	ret
 
 	; Check timerfl_pb
 ADC_to_timerfl_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x91
+	subb a, #0xAA
 	jc ADC_to_tempsoak_pb
 	clr timerfl_pb
-	ret
 
 	; Check tempsoak_pb
 ADC_to_tempsoak_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x6D
+	subb a, #0x7F
 	jc ADC_to_timesoak_pb
 	clr tempsoak_pb
-	ret
 
 	; Check timesoak_pb
 ADC_to_timesoak_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x48
+	subb a, #0x55
 	jc ADC_to_powerpb
 	clr timesoak_pb
-	ret
 
 	; Check powerpb
 ADC_to_powerpb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x24
+	subb a, #0x2A
 	jc ADC_to_pbdone
 	clr powerpb
-	ret
 	
 ADC_to_pbdone:
 	; No pushbutton pressed	
 	ret
+
+;------------------------------------------------------;
+; CounterSet                                           ;
+; function: set counters                               ;
+; parameters: button to dec/inc, variable to inc/dec,  ;
+; label to branch to if button to dec/inc not pushed   ;
+;------------------------------------------------------;
+CounterSet MAC
+    jb %0, %2
+    Wait_Milli_Seconds(#50) ; debounce
+    jb %0, %2
+
+    jb incdecpb, increase%M
+    dec %1
+    sjmp endCounterSet%M
+increase%M:
+    inc %1
+endCounterSet%M:
+ENDMAC
+
+;-----------------------------------------------------------;
+; CounterCheck (WIP: Still need to add reset for low range) ;
+; Checks the counters, resets them if they're out of range  ;
+;-----------------------------------------------------------;
+
+CounterCheck:
+    TempSoakCheck:
+        mov a, #0x150
+        subb a, tempsoak
+        jnz a, TimeSoakCheck
+        mov a, #0x0
+        mov tempsoak, a
+
+    TimeSoakCheck:
+        mov a, #0x60
+        subb a, timesoak
+        jnz a, TempRflCheck
+        mov a, #0x0
+        mov timesoak, a
+
+    TempRflCheck:
+        mov a, #0x220
+        subb a, temprfl
+        jnz a, TimeRflCheck
+        mov a, #0x150
+        mov tempfl, a
+
+    TimeRflCheck:
+        mov a, #0x45
+        subb a, timerfl
+        jnz a, CounterCheckDone
+        mov a, #0x0
+        mov timerfl, a
+
+    CounterCheckDone:
+        ret
+
+
 
 
