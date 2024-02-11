@@ -22,3 +22,19 @@ $include(math32.inc) ; Library of math funcs
 ;whatever else we need to include
 $LIST
 
+
+DSEG at 0x30
+  ; These register definitions needed by 'math32.inc'
+	temp:     ds 8
+  count:    ds 7
+	last:     ds 6
+	x:   	    ds 4
+	y:        ds 4
+	bcd:      ds 5
+	VLED_ADC: ds 2
+  ;these used for settable variables, make sure values over 10 still work
+  fsm1_state: ds 13 ;state variable for fsm1
+  tempsoak:   ds 12 ;150C +/- 20C
+  timesoak:   ds 11 ;soak time <= 60s
+  temprefl:   ds 10 ;240C > temp >= 220
+  timerefl:   ds 9  ;45s > 
