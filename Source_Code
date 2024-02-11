@@ -31,6 +31,11 @@ TIMER2_RATE   EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD EQU ((65536-(CLK/TIMER2_RATE))) ;
 
 
+TEMPSOAK_BUTTON		equ P1.  ;set to button pins
+TIMESOAK_BUTTON		equ P1.
+TEMPREFL_BUTTON		equ P1.
+TIMEREFL_BUTTON		equ P1.
+
 ; Reset vector
 org 0x0000
     ljmp main
@@ -60,6 +65,10 @@ DSEG at 0x30
     temprefl:   ds 10 ;240C > temp >= 220
     timerefl:   ds 9  ;45s > 
 
+	seconds: ds 1 ; increments and displays seconds
+	minutes: ds 1 ; increments and displays minutes
+	state_seconds ds 1 ; increments and displays state seconds
+	state_minutes: ds 1 ; increments and displays state_minutes
 
 ;---------------------------------;
 ; Routine to initialize the ISR   ;
@@ -101,6 +110,62 @@ Timer2_Init:
 	ret
 
 
+;---------------------------------;
+; ISR for timer 2                 ;
+;---------------------------------;
+Timer2_ISR:
+	clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in the ISR.  It is bit addressable.
+	cpl P0.4 ; To check the interrupt rate with oscilloscope. It must be precisely a 1 ms pulse.
+	
+	; The two registers used in the ISR must be saved in the stack
+	push acc
+	push psw
+	
+	; Increment the 16-bit one mili second counter
+	inc Count1ms+0    ; Increment the low 8-bits first
+	mov a, Count1ms+0 ; If the low 8-bits overflow, then increment high 8-bits
+	jnz Inc_Done
+	inc Count1ms+1
+
+Inc_Done:
+	mov a, Count1ms+0
+	cjne a, #low(1000), Timer2_ISR_done ; Warning: this instruction changes the carry flag!
+	mov a, Count1ms+1
+	cjne a, #high(1000), Timer2_ISR_done
+
+	setb seconds_flag ; **** ADD TO MAIN PROGRAM ****
+
+	; Reset to zero the milli-seconds counter, it is a 16-bit variable
+	clr a
+	mov Count1ms+0, a
+	mov Count1ms+1, a
+
+; Increment Seconds
+inc_seconds:
+
+	mov a, seconds
+	add a, #0x01
+	da a ; this instruction works only after the add or addc instructions
+	mov seconds, a
+	cjne a, #0x60, Timer2_ISR_done ;
+	mov seconds, #0 	
+	sjmp inc_minutes
+
+inc_minutes:
+	mov a, minutes
+	add a, #0x01
+	da a ; this instruction works only after the add or addc instructions
+	mov minutes, a
+	cjne a, #0x60, Timer2_ISR_done ; 
+	mov minutes, #0
+
+Timer2_ISR_done:
+	pop psw
+	pop acc
+	reti
+
+    
+;------------------------------
 main:
 	; Initialization
     mov SP, #0x7F
