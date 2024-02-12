@@ -1,4 +1,66 @@
 cseg
+
+;##COPIED FROM LCD_4bit.inc##
+;---------------------------------;
+; Wait 'R2' milliseconds          ;
+;---------------------------------;
+Wait_Milli_Seconds mac
+	push AR2
+	mov R2, %0
+	lcall ?Wait_Milli_Seconds
+	pop AR2
+endmac
+
+;---------------------------------;
+; Wait 'R2' milliseconds          ;
+;---------------------------------;
+?Wait_Milli_Seconds:
+    push AR0
+    push AR1
+L3: mov R1, #40
+L2: mov R0, #104
+L1: djnz R0, L1 ; 4 cycles->4*60.24ns*104=25.0us
+    djnz R1, L2 ; 25us*40=1.0ms
+    djnz R2, L3 ; number of millisecons to wait passed in R2
+    pop AR1
+    pop AR0
+    ret
+
+;##CUSTOM MACROS##
+;---------------------------------------;
+; LCD_PB 	                            ;
+; stores values of inc/dec pb connected ;
+; to LCD  								;
+; parameters:							;		
+; incdecpb (flag), input pin (P1.5?)	;
+;---------------------------------------;
+
+LCD_PB MAC
+	; Set variables to 1: 'no push button pressed'
+	setb %0
+	; The input pin used to check set to '1'
+	setb %1
+	
+	; Check if any push button is pressed
+	clr P1.3 ;connect incdec pb to P1.3
+
+	jb %3, LCD_PB_Done
+	; Debounce
+    Wait_Milli_Seconds(#50) ; debounce
+	jb %1 LCD_PB_Done
+
+	; Set the LCD data pins to logic 1
+	setb P1.3
+	
+	; Check the push button
+	clr P1.3 ;if data pin = 0 and button pressed, p1.5 = 0 
+	mov c, %1
+	mov %0, c ;if p1.5 = 0, inc/dec pressed (incdec pb = 0)
+	setb P1.3
+
+LCD_PB_Done:		
+	ENDMAC
+
     
 ;----------------------------------------------------------;
 ; ADC MUXED BUTTONS                                        ;
@@ -76,8 +138,8 @@ cseg
 ; ADC_to_PB                             ;
 ; stores values of pb connected to AIN0 ;
 ; parameters (flags):					;
-; incdec, temprfl, timerfl, 		    ;
-; tempsoak, timesoak, pwmpb				;
+; setup, incdec, temprfl, timerfl, 		;
+; tempsoak, timesoak, pwmpb 			;
 ;---------------------------------------;
 
 ADC_to_PB MAC
@@ -88,11 +150,18 @@ ADC_to_PB MAC
 	setb ADCS   ; ADC start trigger signal
     jnb ADCF, $ ; Wait for conversion complete
 
+ADC_to_setup_pb:
+	clr c
+	mov a, ADCRH
+	subb a, #0x24
+	jc ADC_to_incdec_pb
+	cpl %0
+
 	;check incdecpb
 ADC_to_incdecpb:
 	clr c
 	mov a, ADCRH ;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0x48 ;if 0x48 > ADRH, carry = 1 (negative num), incpb not pressed
+	subb a, #0x48 ;if 0x48 > ADRH, carry = 1 (negative num), incDECpb not pressed
 	jc ADC_to_temprfl_pb
 	cpl %1
 
@@ -143,57 +212,88 @@ ADC_to_pbdone:
 ;------------------------------------------------------;
 ; TempSoakSet                                   	   ;
 ; function: set TempSoak     						   ;
-; parameters: inc/dec pb, tempsoak, tempsoak (FLAG),   ;
-; incdec (FLAG), branch to if counterpb not   		   ; 	
-; pressed										  	   ;
+; parameters: tempsoak, tempsoak (FLAG), incdec (FLAG) ;
 ;------------------------------------------------------;
 TempSoakSet MAC
 		jnb %2, endTempSoakSet%M ;exit if controller not set to adjust tempsoak
 
-        jb %0, %4
-        Wait_Milli_Seconds(#50) ; debounce
-        jb %0, %4
-
 		mov a, %1
-        jnb %3, increase%M ;if dec pb not pushed, increase tempsoak
+        jnb %3, increaseTempS%M ;if dec pb not pushed, increase tempsoak
 		subb a, #0x130
         jz endTempSoakSet%M ;if tempsoak = to 130 (minimum temp), do not decrease
-        dec %1
+        dec %0
         sjmp endTempSoakSet%M
 
 	increaseTempS%M:
 		subb a, #0x170
 		jz endTempSoakSet%M ;if tempsoak = to 170, do not increase
-		inc %1
+		inc %0
 endTempSoakSet%M:
 ENDMAC
 
 ;------------------------------------------------------;
 ; TimeSoakSet                                   	   ;
 ; function: set TimeSoak     						   ;
-; parameters: inc/dec pb, timesoak, timesoak (FLAG),   ;
-; incdec (FLAG), branch to if counterpb not   		   ; 	
-; pressed										  	   ;
+; parameters: timesoak, timesoak (FLAG), incdec (FLAG) ;	
 ;------------------------------------------------------;
 TimeSoakSet MAC
-		jnb %2, endTimeSoakSet%M ;exit if controller not set to adjust timesoak
+		jnb %1, endTimeSoakSet%M ;exit if controller not set to adjust timesoak
 
-        jb %0, %4
-        Wait_Milli_Seconds(#50) ; debounce
-        jb %0, %4
+		mov a, %0
 
-		mov a, %1
-
-        jnb %3, increase%M ;if dec pb not pushed, increase timesoak
-        jz endTimeSoakSet%M ;if tempsoak = to 0 (minimum time), do not decrease
-        dec %1
+        jnb %2, increaseTimeS%M ;if dec pb not pushed, increase timesoak
+        jz endTimeSoakSet%M ;if timesoak = to 0 (minimum time), do not decrease
+        dec %0
         sjmp endTimeSoakSet%M
 
-	increaseTempS%M:
+	increaseTimeS%M:
 		subb a, #0x60
-		jz endTimeSoakSet%M ;if tempsoak = to 60, do not increase
-		inc %1
+		jz endTimeSoakSet%M ;if timesoak = to 60, do not increase
+		inc %0
 endTimeSoakSet%M:
 ENDMAC
 
+;------------------------------------------------------;
+; TempRflSet                                   	   	   ;
+; function: set TempRfl     						   ;
+; parameters: temprfl, temprfl (FLAG), incdec (FLAG)   ;
+;------------------------------------------------------;
+TempRflSet MAC
+		jnb %1, endTempRflSet%M ;exit if controller not set to adjust temprfl
+
+		mov a, %0
+        jnb %3, increaseTempR%M ;if dec pb not pushed, increase temprfl
+		subb a, #0x150
+        jz endTempRflSet%M ;if temprfl = to 150 (minimum temp), do not decrease
+        dec %0
+        sjmp endTempRflSet%M
+
+	increaseTempR%M:
+		subb a, #0x220
+		jz endTempRflSet%M ;if temprfl = to 220, do not increase
+		inc %0
+endTempRflSet%M:
+ENDMAC
+
+;------------------------------------------------------;
+; TimeRflSet										   ;
+; function: set TimeRfl		   						   ;
+; parameters: timerfl, timerfl (FLAG), incdec (FLAG) ;	
+;------------------------------------------------------;
+TimeRflSet MAC
+		jnb %1, endTimeRflSet%M ;exit if controller not set to adjust timerfl
+
+		mov a, %0
+
+        jnb %2, increaseTimeR%M ;if set to inc, increase timerfl
+        jz endTimeRflSet%M ;if timerfl = to 0 (minimum time), do not decrease
+        dec %0
+        sjmp endTimeRflSet%M
+
+	increaseTimeR%M:
+		subb a, #0x45
+		jz endTimeRflSet%M ;if timerfl = to 45, do not increase
+		inc %0
+endTimeRflSet%M:
+ENDMAC
 
