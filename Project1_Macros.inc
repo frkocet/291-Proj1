@@ -21,15 +21,17 @@ cseg
 ;                                                                                                ;
 ; BSEG                                                                                           ;
 ; **These eight bit variables store the value of the pushbuttons after calling 'ADC_to_PB' below ;
-; powerpb: dbit 1                                                                                ;
-; timesoak_pb: dbit 1                                                                            ;
-; tempsoak_pb: dbit 1                                                                            ;
-; timerfl_pb: dbit 1                                                                             ;
-; temprfl_pb: dbit 1                                                                             ;
-; incpb: dbit 1                                                                                  ;
-; decpb: dbit 1                                                                                  ;
-; PB7: dbit 1                                                                                    ;
-;                                                                                                ;
+; bseg																							 ;
+; PUSH BUTTON FLAGS:																			 ;
+; (matches push button values)																	 ;
+; incdec_flag: dbit 1 ;controller set to increase counters if 0, decrease if 1					 ;
+; temprfl_flag: dbit 1 ;controller set to adjust temprfl if 0									 ;
+; timerfl_flag: dbit 1 ;controller set to adjust timerfl if 0									 ;
+; tempsoak_flag: dbit 1 ;controller set to adjust temprfl if 0									 ;
+; timesoak_flag: dbit 1 ;controller set to adjust timesoak if 0									 ;
+; pwm_flag: dbit 1 ; start/stop switch, 0 if start, 1 if stop                                    ;
+; ^^SET ALL TO 0 INITIALLY                                                                       ;
+;																								 ;
 ; CSEG                                                                                           ;
 ; Init_All:                                                                                      ;
 ; 	; Configure all the pins for biderectional I/O                                               ;
@@ -69,12 +71,16 @@ cseg
 ; 	ret                                                                                          ;
 ;------------------------------------------------------------------------------------------------;
     
+
 ;---------------------------------------;
 ; ADC_to_PB                             ;
 ; stores values of pb connected to AIN0 ;
+; parameters (flags):					;
+; incdec, temprfl, timerfl, 		    ;
+; tempsoak, timesoak, pwmpb				;
 ;---------------------------------------;
 
-ADC_to_PB:
+ADC_to_PB MAC
 	anl ADCCON0, #0xF0
 	orl ADCCON0, #0x00 ; Select AIN0
 	
@@ -82,127 +88,112 @@ ADC_to_PB:
 	setb ADCS   ; ADC start trigger signal
     jnb ADCF, $ ; Wait for conversion complete
 
-	setb incdecpb ; 1 if increasing, 0 if decreasing
-    ;0 if setting time/temp, 1 if not
-	setb temprfl_pb 
-	setb timerfl_pb
-	setb tempsoak_pb
-	setb timesoak_pb
-	setb powerpb
-	
-    ;goes from buttons w highest voltage to lowest voltage
-
-	; Check incdecpb
+	;check incdecpb
 ADC_to_incdecpb:
 	clr c
 	mov a, ADCRH ;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0xFF ;if 0xFF > ADRH, carry = 1 (negative num), PB7 not pressed
+	subb a, #0x48 ;if 0x48 > ADRH, carry = 1 (negative num), incpb not pressed
 	jc ADC_to_temprfl_pb
-	clr incdecpb
+	cpl %1
 
 	; Check temprfl_pb
 ADC_to_temprfl_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0xD4
+	subb a, #0x6D
 	jc ADC_to_timerfl_pb
-	clr temprfl_pb
+	cpl %2
 
 	; Check timerfl_pb
 ADC_to_timerfl_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0xAA
+	subb a, #0x91
 	jc ADC_to_tempsoak_pb
-	clr timerfl_pb
+	cpl %3
 
 	; Check tempsoak_pb
 ADC_to_tempsoak_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x7F
+	subb a, #0xB6
 	jc ADC_to_timesoak_pb
-	clr tempsoak_pb
+	cpl %4
 
 	; Check timesoak_pb
 ADC_to_timesoak_pb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x55
+	subb a, #0xDA
 	jc ADC_to_powerpb
-	clr timesoak_pb
+	cpl %5
 
-	; Check powerpb
-ADC_to_powerpb:
+	; Check pwmpb
+ADC_to_pwmpb:
 	clr c
 	mov a, ADCRH
-	subb a, #0x2A
+	subb a, #0xFF
 	jc ADC_to_pbdone
-	clr powerpb
+	cpl %6
 	
 ADC_to_pbdone:
-	; No pushbutton pressed	
-	ret
+	; No pushbutton pressed	or all buttons checked
+	ENDMAC
 
 ;------------------------------------------------------;
-; CounterSet                                           ;
-; function: set counters, doesn't allow dec < 0        ;
-; parameters: button to dec/inc, variable to inc/dec,  ;
-; label to branch to if button to dec/inc not pushed   ;
+; TempSoakSet                                   	   ;
+; function: set TempSoak     						   ;
+; parameters: inc/dec pb, tempsoak, tempsoak (FLAG),   ;
+; incdec (FLAG), branch to if counterpb not   		   ; 	
+; pressed										  	   ;
 ;------------------------------------------------------;
-CounterSet MAC
-    CounterPush%M:
-        jb %0, %2
+TempSoakSet MAC
+		jnb %2, endTempSoakSet%M ;exit if controller not set to adjust tempsoak
+
+        jb %0, %4
         Wait_Milli_Seconds(#50) ; debounce
-        jb %0, %2
+        jb %0, %4
 
-        jb incdecpb, increase%M
-        mov a, %1
-        jz endCounterSet%M
+		mov a, %1
+        jnb %3, increase%M ;if dec pb not pushed, increase tempsoak
+		subb a, #0x130
+        jz endTempSoakSet%M ;if tempsoak = to 130 (minimum temp), do not decrease
         dec %1
-        sjmp endCounterSet%M
-increase%M:
-    inc %1
-endCounterSet%M:
+        sjmp endTempSoakSet%M
+
+	increaseTempS%M:
+		subb a, #0x170
+		jz endTempSoakSet%M ;if tempsoak = to 170, do not increase
+		inc %1
+endTempSoakSet%M:
 ENDMAC
 
-;-----------------------------------------------------------------;
-; CounterCheck                                                    ;
-; Checks the counters, resets them if they're out of upper range  ;
-;-----------------------------------------------------------------;
+;------------------------------------------------------;
+; TimeSoakSet                                   	   ;
+; function: set TimeSoak     						   ;
+; parameters: inc/dec pb, timesoak, timesoak (FLAG),   ;
+; incdec (FLAG), branch to if counterpb not   		   ; 	
+; pressed										  	   ;
+;------------------------------------------------------;
+TimeSoakSet MAC
+		jnb %2, endTimeSoakSet%M ;exit if controller not set to adjust timesoak
 
-CounterCheck:
-    TempSoakCheck:
-        mov a, #0x150
-        subb a, tempsoak
-        jnz TimeSoakCheck
-        mov a, #0x0
-        mov tempsoak, a
+        jb %0, %4
+        Wait_Milli_Seconds(#50) ; debounce
+        jb %0, %4
 
-    TimeSoakCheck:
-        mov a, #0x60
-        subb a, timesoak
-        jnz TempRflCheck
-        mov a, #0x0
-        mov timesoak, a
+		mov a, %1
 
-    TempRflCheck:
-        mov a, #0x220
-        subb a, temprfl
-        jnz TimeRflCheck
-        mov a, #0x150
-        mov tempfl, a
+        jnb %3, increase%M ;if dec pb not pushed, increase timesoak
+        jz endTimeSoakSet%M ;if tempsoak = to 0 (minimum time), do not decrease
+        dec %1
+        sjmp endTimeSoakSet%M
 
-    TimeRflCheck:
-        mov a, #0x45
-        subb a, timerfl
-        jnz CounterCheckDone
-        mov a, #0x0
-        mov timerfl, a
-
-    CounterCheckDone:
-        ret
-
-
+	increaseTempS%M:
+		subb a, #0x60
+		jz endTimeSoakSet%M ;if tempsoak = to 60, do not increase
+		inc %1
+endTimeSoakSet%M:
+ENDMAC
 
 
