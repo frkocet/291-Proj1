@@ -31,12 +31,16 @@ TIMER2_RATE   EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD EQU ((65536-(CLK/TIMER2_RATE))) ;
 
 
-TEMPSOAK_BUTTON		equ P1.  ;set to button pins
+TEMPSOAK_BUTTON		equ P1.  ;set to button pins/ delete
 TIMESOAK_BUTTON		equ P1.
 TEMPREFL_BUTTON		equ P1.
 TIMEREFL_BUTTON		equ P1.
 PWM_OUT 			equ P1. ; Logic 1 = Oven on --> whatever the oven is connected to
 
+
+;-------------------;
+;   vector jumps    ;
+;-------------------;
 ; Reset vector
 org 0x0000
     ljmp main
@@ -50,6 +54,24 @@ org 0x002B
 	ljmp Timer2_ISR
 
 
+
+
+;-------------------;
+;   lcd messages    ;
+;-------------------;
+;                     	1234567890123456    <- This helps determine the location of the counter
+chillin_message:      	db 'State: Chillin  ', 0
+ramp2soak_message:    	db 'State: Ramp2soak', 0
+soak_message:         	db 'State: Soak     ', 0
+ramp2peak_message:    	db 'State:', 0
+reflow_message:    		db 'State:', 0
+cooling_message			db 'State:', 0
+error_message			db 'State:', 0
+blank_message			db 'State:', 0
+
+;-----------------------------------;
+;   variable register definitions   ;
+;-----------------------------------;
 DSEG at 0x30
   ; These register definitions needed by 'math32.inc'
 	temp:     ds 8
@@ -69,9 +91,9 @@ DSEG at 0x30
 	seconds: ds 1 ; increments and displays seconds
 	minutes: ds 1 ; increments and displays minutes
 	state_seconds ds 1 ; increments and displays state seconds
-	state_minutes: ds 1 ; increments and displays state_minutes
 	pwm_counter: ds 1
 	pwm: ds 1
+
 
 ;---------------------------------;
 ; Routine to initialize the ISR   ;
@@ -153,15 +175,23 @@ Inc_Done:
 	mov Count1ms+0, a
 	mov Count1ms+1, a
 
-; Increment Seconds
-inc_seconds:
+; Increment State Seconds
+inc_state_seconds:
+	mov a, state_seconds
+	add a, #0x01
+	mov state_seconds, a
+	;cjne a, #0x60, inc_seconds ;
+	;mov state_seconds, #0
+	;sjmp inc_minutes
 
+; Increment System Timer
+inc_seconds:
 	mov a, seconds
 	add a, #0x01
 	da a ; this instruction works only after the add or addc instructions
 	mov seconds, a
 	cjne a, #0x60, Timer2_ISR_done ;
-	mov seconds, #0 	
+    mov seconds, #0 	
 	sjmp inc_minutes
 
 inc_minutes:
@@ -175,8 +205,12 @@ inc_minutes:
 Timer2_ISR_done:
 	pop psw
 	pop acc
-	reti
-;------------------------------
+	reti    
+
+
+;------------------------------------------------------------------------------;
+; Start of the code, runs through initialization then enters the infinite loop ;    
+;------------------------------------------------------------------------------;
 main:
 	; Initialization
     mov SP, #0x7F
@@ -193,12 +227,74 @@ main:
     lcall Timer2_Init
     setb EA   ; Enable Global interrupts
 
+
+;-----------------------------------------------------------------------------------;
+; after the fist loop code stays in this loop, updates lcd -> math -> state machine ;    
+;-----------------------------------------------------------------------------------;
+Display:                    ;display values to ** LCD **, landing from state machine jumps
+	mov a, state_seconds    ; State Timer
+	mov b, #60 
+	div ab                  ;Divide State Seconds Count by 60
+
+	Set_Cursor(1, 4)        ; ** CHANGE AS NEEDED **
+	Display_BCD(b)          ;Display remainder as seconds
+
+	Set_Cursor(1, 12)       ; ** CHANGE AS NEEDED **
+	Display_BCD(a)          ;Display result as minutes
+
+
+	; System Timer
+    Set_Cursor(1, 4)        ; ** CHANGE AS NEEDED **
+	Display_BCD(minutes)
+
+	Set_Cursor(1, 12)       ; ** CHANGE AS NEEDED **
+	Display_BCD(seconds)
+
+
+;------------------------------------------------------------------------------;
+; displays the values of variables or current state depending on current state ;
+;------------------------------------------------------------------------------;
+    mov a, fsm1_state
+    cjne a, #0, display_state1
+    ;put state: chillin on screen
+
+display_state1:
+    cjne a, #1, display_state2
+    ;put state: ramp2soak on screen
+
+display_state2:
+    cjne a, #2, display_state3
+    ;put state: soak on screen
+
+display_state3:
+    cjne a, #3, display_state4
+    ;put state: ramp2peak on screen
+
+display_state4:
+    cjne a, #4, display_state5
+    ;put state: reflow on screen
+
+display_state5:
+    ;put state: reflow on screen
+
+
+	ljmp fsm1       ;jump to start of state machine
+    ;ljmp math      ;change to this line later
+
+
+;---------------------;
+; ** put math here ** ;    
+;---------------------;  
+;math:
+;math stuff |
+;           |
+;ljmp fsm1
+
+
+
 ;need auto termination !!
 ;maybe in state 1, track the time and temp, jump if != 50C in 60s
 ;ie. set bit if auto termination cond met, and use jb to branch to state 0
-;ALL STATES/VARIABLES ALL LOWERCASE
-
-
 ;------------------------------------------------;
 ; State machine for each stage of reflow process ;
 ;------------------------------------------------;
@@ -217,18 +313,16 @@ chillin: ;state 0, "waiting" for a button push to start,
     update_timesoak (shift_button, TIMESOAK_BUTTON)
     update_temprefl (shift_button, TEMPREFL_BUTTON)
     update_temprefl (shift_button, TIMEREFL_BUTTON)
-    ;display updated values
-    ;### CALL SOMEMACRO TO DISPLAY VALUES ###
     ;### CALL SOMEMACRO TO UPDATE A FLAG BASED ON time=60 &temp<50 ###
 
     
 
     jb panic_button, chillin_done   ;keep looping if button not pushed, using panic button as on/off
-    jnb panic_button, $                 ;debounce
-    mov fsm1_state, #1                  ;set state to soak
+    jnb panic_button, $             ;debounce
+    mov fsm1_state, #1              ;set state to soak
 chillin_done:   
-    ljmp fsm1         ;change all fsm1 labels to next peice of code, currently fsm1 to loop for testing
-                      ;likely go to math for temp calculation
+    ljmp fsm1                       ;loops to display and updates display
+                      
 
 
 ;------------------
@@ -277,7 +371,7 @@ reflow:
     mov pwm, #30
     mov a, timerefl
     clr c
-    subb a, state_seconds ;"timerefl"- "state_seconds"
+    subb a, state_seconds   ;"timerefl"- "state_seconds"
     jnc reflow_done
     mov fsm1_state, #5      ;set state to cooling
     mov state_seconds, #0
@@ -298,12 +392,12 @@ cooling_done:
     ljmp fsm1
 
 ;------------------
-error: ;exited on error, stuck in this state untill "panic button" pressed
+error: ;exited on error, stuck in this state until "panic button" pressed
     ;display some error message
-    mov pwm, #0            ; oven off
-    jb panic_button, error ;if "panic_button" not pressed, stuck here
-    jnb panic_button, $    ;debounce
-    mov fsm_state, #0      ;go back to chillin state
+    mov pwm, #0             ; oven off
+    jb panic_button, error  ;if "panic_button" not pressed, stuck here
+    jnb panic_button, $     ;debounce
+    mov fsm_state, #0       ;go back to chillin state
     mov state_seconds, #0
 error_done:
     ljmp fsm1
