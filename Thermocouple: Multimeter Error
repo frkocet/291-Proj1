@@ -175,9 +175,10 @@ Sum_loop0:
     Set_Cursor(1, 7)
 	lcall Display_formated_BCD
 	
-	; Figure out 'magic number' that will give temperature    
+	; Figure out 'magic number' that will give temperature 
+	; Resistors used: R1 ~= 21.6kOhm, R2 ~= 97.75kOhm   
 	lcall bcd2hex
-	load_Y(24338) ; 24.3384
+	load_Y(111465) ; 111.4646
 	lcall mul32 ; multiply by 1000000/(R1/R2 * 40.6)
 	load_Y(1000)
 	lcall div32 
@@ -203,3 +204,4 @@ Sum_loop0:
 	ljmp Forever
 	
 END
+	
