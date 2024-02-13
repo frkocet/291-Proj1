@@ -119,7 +119,7 @@ TempSoakSet MAC
 		jnb %2, endTempSoakSet%M ;exit if controller not set to adjust tempsoak
 
 		mov a, %1
-        jnb %3, increaseTempS%M ;if dec pb not pushed, increase tempsoak
+        jnb %2, increaseTempS%M ;if dec pb not pushed, increase tempsoak
 		subb a, #0x130
         jz endTempSoakSet%M ;if tempsoak = to 130 (minimum temp), do not decrease
         dec %0
