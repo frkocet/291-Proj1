@@ -13,8 +13,9 @@ cseg
 ; EXCEPT: shiftpb						;
 ; parameters (flags):					;
 ; setup, incdec, temprfl, timerfl, 		;
-; tempsoak, timesoak, pwmpb 			;
+; tempsoak, timesoak					;
 ;---------------------------------------;
+;ADC VALUES: 249, 492, 6EF, 924, B6D, DB6, FFF
 
 ADC_to_PB MAC
 	mov ADCCON0, #0xF1
@@ -26,15 +27,15 @@ ADC_to_PB MAC
 ADC_to_setup_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x30
+	subb a, #0x49
 	jc ADC_to_incdec_pb%M
 	cpl %0
 
 	;check incdecpb
-ADC_to_incdecpb%M:
+ADC_to_incdec_pb%M:
 	clr c
-	mov a, ADCRH ;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0x50 ;if 0x50 > ADRH, carry = 1 (negative num), incDECpb not pressed
+	mov a, ADCRH 	;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
+	subb a, #0x6E 	;if 0x50 > ADRH, carry = 1 (negative num), incDECpb not pressed
 	jc ADC_to_temprfl_pb%M
 	cpl %1
 
@@ -42,7 +43,7 @@ ADC_to_incdecpb%M:
 ADC_to_temprfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x70
+	subb a, #0x92
 	jc ADC_to_timerfl_pb%M
 	cpl %2
 
@@ -50,7 +51,7 @@ ADC_to_temprfl_pb%M:
 ADC_to_timerfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x90
+	subb a, #0xB6
 	jc ADC_to_tempsoak_pb%M
 	cpl %3
 
@@ -58,7 +59,7 @@ ADC_to_timerfl_pb%M:
 ADC_to_tempsoak_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xB0
+	subb a, #0xDB
 	jc ADC_to_timesoak_pb%M
 	cpl %4
 
@@ -66,17 +67,9 @@ ADC_to_tempsoak_pb%M:
 ADC_to_timesoak_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xD0
-	jc ADC_to_powerpb%M
-	cpl %5
-
-	; Check pwmpb
-ADC_to_pwmpb%M:
-	clr c
-	mov a, ADCRH
-	subb a, #0xF0
+	subb a, #0xFF
 	jc ADC_to_pbdone%M
-	cpl %6
+	cpl %5
 	
 ADC_to_pbdone%M:
 	; No pushbutton pressed	or all buttons checked
@@ -102,8 +95,8 @@ ADC_incdec MAC
 ADC_to_shift_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x1F
-	jc ADC_to_shiftpbdone
+	subb a, #0x24
+	jc ADC_to_shiftpbdone%M
 	setb %0
 
 ADC_to_shiftpbdone%M:
@@ -120,13 +113,13 @@ TempSoakSet MAC
 
 		mov a, %1
         jnb %2, increaseTempS%M ;if dec pb not pushed, increase tempsoak
-		subb a, #0x130
+		subb a, #130
         jz endTempSoakSet%M ;if tempsoak = to 130 (minimum temp), do not decrease
         dec %0
         sjmp endTempSoakSet%M
 
 	increaseTempS%M:
-		subb a, #0x170
+		subb a, #170
 		jz endTempSoakSet%M ;if tempsoak = to 170, do not increase
 		inc %0
 endTempSoakSet%M:
@@ -148,7 +141,7 @@ TimeSoakSet MAC
         sjmp endTimeSoakSet%M
 
 	increaseTimeS%M:
-		subb a, #0x60
+		subb a, #60
 		jz endTimeSoakSet%M ;if timesoak = to 60, do not increase
 		inc %0
 endTimeSoakSet%M:
@@ -164,13 +157,13 @@ TempRflSet MAC
 
 		mov a, %0
         jnb %2, increaseTempR%M ;if dec pb not pushed, increase temprfl
-		subb a, #0x150
+		subb a, #150
         jz endTempRflSet%M ;if temprfl = to 150 (minimum temp), do not decrease
         dec %0
         sjmp endTempRflSet%M
 
 	increaseTempR%M:
-		subb a, #0x220
+		subb a, #220
 		jz endTempRflSet%M ;if temprfl = to 220, do not increase
 		inc %0
 endTempRflSet%M:
@@ -192,7 +185,7 @@ TimeRflSet MAC
         sjmp endTimeRflSet%M
 
 	increaseTimeR%M:
-		subb a, #0x45
+		subb a, #045
 		jz endTimeRflSet%M ;if timerfl = to 45, do not increase
 		inc %0
 endTimeRflSet%M:
@@ -207,7 +200,7 @@ ENDMAC
 CMPTempTime MAC
 clr c
 mov a, %0
-subb a, #0x60
+subb a, #60
 
 jnz SafetyNet%M; jump if time != 60 
 SafetyNet%M:
@@ -216,7 +209,7 @@ jnc NoError%M; jump if time !> 60
 CheckTemp%M:
 clr c
 mov a, %1 
-subb a, #0x49
+subb a, #49
 jc NoError%M; jump if temp > 49C
 setb %2
 sjmp CMPTempTime_done%M
