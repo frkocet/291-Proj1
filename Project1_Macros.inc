@@ -236,9 +236,12 @@ clr c
 mov a, %0
 subb a, #0x60
 
-jnz NoError%M; jump if time != 60 
+jnz SafetyNet%M; jump if time != 60 
+SafetyNet%M:
+jnc NoError%M; jump if time !> 60
 
 CheckTemp%M:
+clr c
 mov a, %1 
 subb a, #0x49
 jc NoError%M; jump if temp > 49C
