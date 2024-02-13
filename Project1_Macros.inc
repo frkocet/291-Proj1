@@ -56,7 +56,7 @@ L1: djnz R0, L1 ; 4 cycles->4*60.24ns*104=25.0us
 ; timerfl_flag: dbit 1 ;controller set to adjust timerfl if 0									 ;
 ; tempsoak_flag: dbit 1 ;controller set to adjust temprfl if 0									 ;
 ; timesoak_flag: dbit 1 ;controller set to adjust timesoak if 0									 ;
-; setup_flag: dbit 1; controller set to adjust counters								 			 ;
+; setup_flag: dbit 1; controller set to adjust counters	(so users can't adjust mid reflow)		 ;
 ; pwm_flag: dbit 1 ; start/stop switch, 0 if start, 1 if stop                          			 ;
 ; ^^SET ALL TO 0 INITIALLY    																	 ;
 ; shiftpb: dbit 1 ;button to increase and decrease the counters                                  ;
