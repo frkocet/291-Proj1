@@ -163,7 +163,7 @@ TempRflSet MAC
 		jnb %1, endTempRflSet%M ;exit if controller not set to adjust temprfl
 
 		mov a, %0
-        jnb %3, increaseTempR%M ;if dec pb not pushed, increase temprfl
+        jnb %2, increaseTempR%M ;if dec pb not pushed, increase temprfl
 		subb a, #0x150
         jz endTempRflSet%M ;if temprfl = to 150 (minimum temp), do not decrease
         dec %0
