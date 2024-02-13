@@ -13,9 +13,8 @@ cseg
 ; EXCEPT: shiftpb						;
 ; parameters (flags):					;
 ; setup, incdec, temprfl, timerfl, 		;
-; tempsoak, timesoak					;
+; tempsoak, timesoak, pwmpb 			;
 ;---------------------------------------;
-;ADC VALUES: 249, 492, 6EF, 924, B6D, DB6, FFF
 
 ADC_to_PB MAC
 	mov ADCCON0, #0xF1
@@ -27,7 +26,7 @@ ADC_to_PB MAC
 ADC_to_setup_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x49
+	subb a, #0x30
 	jc ADC_to_incdec_pb%M
 	cpl %0
 
@@ -35,7 +34,7 @@ ADC_to_setup_pb%M:
 ADC_to_incdec_pb%M:
 	clr c
 	mov a, ADCRH 	;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0x6E 	;if 0x50 > ADRH, carry = 1 (negative num), incDECpb not pressed
+	subb a, #0x50 	;if 0x50 > ADRH, carry = 1 (negative num), incDECpb not pressed
 	jc ADC_to_temprfl_pb%M
 	cpl %1
 
@@ -43,7 +42,7 @@ ADC_to_incdec_pb%M:
 ADC_to_temprfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x92
+	subb a, #0x70
 	jc ADC_to_timerfl_pb%M
 	cpl %2
 
@@ -51,7 +50,7 @@ ADC_to_temprfl_pb%M:
 ADC_to_timerfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xB6
+	subb a, #0x90
 	jc ADC_to_tempsoak_pb%M
 	cpl %3
 
@@ -59,7 +58,7 @@ ADC_to_timerfl_pb%M:
 ADC_to_tempsoak_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xDB
+	subb a, #0xB0
 	jc ADC_to_timesoak_pb%M
 	cpl %4
 
@@ -67,9 +66,17 @@ ADC_to_tempsoak_pb%M:
 ADC_to_timesoak_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xFF
-	jc ADC_to_pbdone%M
+	subb a, #0xD0
+	jc ADC_to_powerpb%M  ;has no landing?
 	cpl %5
+
+	; Check pwmpb
+ADC_to_powerpb%M:   ;
+	clr c
+	mov a, ADCRH
+	subb a, #0xF0
+	jc ADC_to_pbdone%M
+	cpl %6
 	
 ADC_to_pbdone%M:
 	; No pushbutton pressed	or all buttons checked
@@ -95,7 +102,7 @@ ADC_incdec MAC
 ADC_to_shift_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x24
+	subb a, #0x1F
 	jc ADC_to_shiftpbdone%M
 	setb %0
 
@@ -185,22 +192,22 @@ TimeRflSet MAC
         sjmp endTimeRflSet%M
 
 	increaseTimeR%M:
-		subb a, #045
+		subb a, #0x45
 		jz endTimeRflSet%M ;if timerfl = to 45, do not increase
 		inc %0
 endTimeRflSet%M:
 ENDMAC
 
 ;------------------------------------------------------;
-; CMPTempTime										   ;
+; CMPTempTime			      		       ;
 ; function: make sure time != 60 and temp < 50, sets   ;
-; flag if not										   ;
-; parameters: state_seconds, temp, error (flag)		   ;	
+; flag if not					       ;
+; parameters: state_seconds, temp, error (flag)	       ;	
 ;------------------------------------------------------;
 CMPTempTime MAC
 clr c
 mov a, %0
-subb a, #60
+subb a, #0x60
 
 jnz SafetyNet%M; jump if time != 60 
 SafetyNet%M:
@@ -209,7 +216,7 @@ jnc NoError%M; jump if time !> 60
 CheckTemp%M:
 clr c
 mov a, %1 
-subb a, #49
+subb a, #0x49
 jc NoError%M; jump if temp > 49C
 setb %2
 sjmp CMPTempTime_done%M
