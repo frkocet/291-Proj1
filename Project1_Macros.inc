@@ -17,8 +17,7 @@ cseg
 ;---------------------------------------;
 
 ADC_to_PB MAC
-	anl ADCCON0, #0xF0
-	orl ADCCON0, #0x01 ; Select AIN1
+	mov ADCCON0, #0xF1
 	
 	clr ADCF
 	setb ADCS   ; ADC start trigger signal
@@ -81,6 +80,7 @@ ADC_to_pwmpb%M:
 	
 ADC_to_pbdone%M:
 	; No pushbutton pressed	or all buttons checked
+	mov ADCCON0, #0xF7
 	ENDMAC
 
 ;---------------------------------------;
@@ -91,8 +91,7 @@ ADC_to_pbdone%M:
 ; shiftpb								;
 ;---------------------------------------;
 ADC_incdec MAC
-	anl ADCCON0, #0xF0
-	orl ADCCON0, #0x01 ; Select AIN1
+	mov ADCCON0, #0xF1 ; Select AIN0
 	
 	clr ADCF
 	setb ADCS   ; ADC start trigger signal
@@ -108,6 +107,7 @@ ADC_to_shift_pb%M:
 	setb %0
 
 ADC_to_shiftpbdone%M:
+mov ADCCON0, #0xF7
 ENDMAC
 
 ;------------------------------------------------------;
