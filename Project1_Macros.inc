@@ -27,41 +27,6 @@ L1: djnz R0, L1 ; 4 cycles->4*60.24ns*104=25.0us
     ret
 
 ;##CUSTOM MACROS##
-;---------------------------------------;
-; LCD_PB 	                            ;
-; stores values of inc/dec pb connected ;
-; to LCD  								;
-; parameters:							;		
-; incdecpb (flag), input pin (P1.5?)	;
-;---------------------------------------;
-
-LCD_PB MAC
-	; Set variables to 1: 'no push button pressed'
-	setb %0
-	; The input pin used to check set to '1'
-	setb %1
-	
-	; Check if any push button is pressed
-	clr P1.3 ;connect incdec pb to P1.3
-
-	jb %3, LCD_PB_Done
-	; Debounce
-    Wait_Milli_Seconds(#50) ; debounce
-	jb %1 LCD_PB_Done
-
-	; Set the LCD data pins to logic 1
-	setb P1.3
-	
-	; Check the push button
-	clr P1.3 ;if data pin = 0 and button pressed, p1.5 = 0 
-	mov c, %1
-	mov %0, c ;if p1.5 = 0, inc/dec pressed (incdec pb = 0)
-	setb P1.3
-
-LCD_PB_Done:		
-	ENDMAC
-
-    
 ;----------------------------------------------------------;
 ; ADC MUXED BUTTONS                                        ;
 ; when button pressed, adc reading changes to 1/7 step V   ;
@@ -137,6 +102,7 @@ LCD_PB_Done:
 ;---------------------------------------;
 ; ADC_to_PB                             ;
 ; stores values of pb connected to AIN0 ;
+; EXCEPT: shiftpb						;
 ; parameters (flags):					;
 ; setup, incdec, temprfl, timerfl, 		;
 ; tempsoak, timesoak, pwmpb 			;
@@ -150,64 +116,91 @@ ADC_to_PB MAC
 	setb ADCS   ; ADC start trigger signal
     jnb ADCF, $ ; Wait for conversion complete
 
-ADC_to_setup_pb:
+ADC_to_setup_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x24
-	jc ADC_to_incdec_pb
+	subb a, #0x3F
+	jc ADC_to_incdec_pb%M
 	cpl %0
 
 	;check incdecpb
-ADC_to_incdecpb:
+ADC_to_incdecpb%M:
 	clr c
 	mov a, ADCRH ;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0x48 ;if 0x48 > ADRH, carry = 1 (negative num), incDECpb not pressed
-	jc ADC_to_temprfl_pb
+	subb a, #0x5F ;if 0x48 > ADRH, carry = 1 (negative num), incDECpb not pressed
+	jc ADC_to_temprfl_pb%M
 	cpl %1
 
 	; Check temprfl_pb
-ADC_to_temprfl_pb:
+ADC_to_temprfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x6D
-	jc ADC_to_timerfl_pb
+	subb a, #0x7F
+	jc ADC_to_timerfl_pb%M
 	cpl %2
 
 	; Check timerfl_pb
-ADC_to_timerfl_pb:
+ADC_to_timerfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x91
-	jc ADC_to_tempsoak_pb
+	subb a, #0x9F
+	jc ADC_to_tempsoak_pb%M
 	cpl %3
 
 	; Check tempsoak_pb
-ADC_to_tempsoak_pb:
+ADC_to_tempsoak_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xB6
-	jc ADC_to_timesoak_pb
+	subb a, #0xBF
+	jc ADC_to_timesoak_pb%M
 	cpl %4
 
 	; Check timesoak_pb
-ADC_to_timesoak_pb:
+ADC_to_timesoak_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xDA
-	jc ADC_to_powerpb
+	subb a, #0xDF
+	jc ADC_to_powerpb%M
 	cpl %5
 
 	; Check pwmpb
-ADC_to_pwmpb:
+ADC_to_pwmpb%M:
 	clr c
 	mov a, ADCRH
 	subb a, #0xFF
-	jc ADC_to_pbdone
+	jc ADC_to_pbdone%M
 	cpl %6
 	
-ADC_to_pbdone:
+ADC_to_pbdone%M:
 	; No pushbutton pressed	or all buttons checked
 	ENDMAC
+
+;---------------------------------------;
+; ADC_incdec                            ;
+; store val of SHIFTPB connected to 	;
+; AIN0									;
+; parameters (flags):					;
+; shiftpb								;
+;---------------------------------------;
+ADC_incdec MAC
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x00 ; Select AIN0
+	
+	clr ADCF
+	setb ADCS   ; ADC start trigger signal
+    jnb ADCF, $ ; Wait for conversion complete
+
+	clr %0
+
+ADC_to_shift_pb%M:
+	clr c
+	mov a, ADCRH
+	subb a, #0x1F
+	jc ADC_to_shiftpbdone
+	setb %0
+
+ADC_to_shiftpbdone%M:
+ENDMAC
 
 ;------------------------------------------------------;
 ; TempSoakSet                                   	   ;
