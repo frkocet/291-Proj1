@@ -56,7 +56,7 @@ org 0x002B
 ;                         VDD -|9    12|- P1.3/SCL/[STADC]
 ;            PWM5/IC7/SS/P1.5 -|10   11|- P1.4/SDA/FB/PWM1
 ;                               -------
-; Note: pin 6 & pin 14 reserved for ADC input
+; Note: pin 5 & pin 14 reserved for ADC input
 
 
 $NOLIST
@@ -81,21 +81,19 @@ BYTE_PROGRAM_AP EQU 00100001b
 ;-----------------------------------;
 DSEG at 0x30
   ; These register definitions needed by 'math32.inc'
-	temp:     ds 8
-  	count:    ds 7
-	last:     ds 6
+	temp:     ds 1
 	x:   	  ds 4
 	y:        ds 4
 	bcd:      ds 5
     VLED_ADC: ds 2
-	Count1ms: ds 14 
+	Count1ms: ds 1 
     
   ; these used for settable variables, make sure values over 10 still work
-    fsm1_state: ds 13 ; state variable for fsm1
-    tempsoak:   ds 12 ; 150C +/- 20C
-    timesoak:   ds 11 ; soak time <= 60s
-    temprefl:   ds 10 ; 240C > temp >= 220
-    timerefl:   ds 9  ; 45s > 
+    fsm1_state: ds 1 ; state variable for fsm1
+    tempsoak:   ds 1 ; 150C +/- 20C
+    timesoak:   ds 1 ; soak time <= 60s
+    temprefl:   ds 1 ; 240C > temp >= 220
+    timerefl:   ds 1  ; 45s > 
 
 	seconds:        ds 1 ; increments and displays seconds
 	minutes:        ds 1 ; increments and displays minutes
@@ -149,9 +147,9 @@ orl	P3M1, #0b0000001
 anl	P3M2, #0b1111110                                                                   
 
 ; AINDIDS select if some pins are analog inputs or digital I/O:                              
-mov AINDIDS, #0x00          ;Disable all analog inputs                                               
+mov AINDIDS, #0x00          ; Disable all analog inputs                                               
 orl AINDIDS, #0b00000010    ; Using AIN1                                                        
-orl ADCCON1, #0x01          ;Enable ADC                                                                                                                                                       
+orl ADCCON1, #0x01          ; Enable ADC                                                                                                                                                       
 
 ; Initialize thermocouple ADC input   
 ; Initialize the pin used by the ADC (P1.1) as input.
@@ -165,9 +163,9 @@ orl ADCCON0, #0x07 ; Select channel 7
 
 ; Don't need first line because its altempsiy done above?    
 ; AINDIDS select if some pins are analog inputs or digital I/O:
-; mov AINDIDS, #0x00 ; Disable all analog inputs
-orl AINDIDS, #0b10000000 ; P1.1 is analog input
-orl ADCCON1, #0x01 ; Enable ADC
+; mov AINDIDS, #0x00, Disable all analog inputs
+orl AINDIDS, #0b10000000 	; P1.1 is analog input
+orl ADCCON1, #0x01 			; Enable ADC
 ret              
 
 
@@ -197,14 +195,13 @@ format_message:			DB 's   ,   r   ,   ', 0
 Timer0_Init:
 	orl CKCON, #0b00001000 ; Input for timer 0 is sysclk/1
 	mov a, TMOD
-	anl a, #0xf0 ; 11110000 Clear the bits for timer 0
-	orl a, #0x01 ; 00000001 Configure timer 0 as 16-timer
+	anl a, #0xf0 	; 11110000 Clear the bits for timer 0
+	orl a, #0x01 	; 00000001 Configure timer 0 as 16-timer
 	mov TMOD, a
 	mov TH0, #high(TIMER0_RELOAD)
 	mov TL0, #low(TIMER0_RELOAD)
-	; Enable the timer and interrupts
-    setb ET0  ; Enable timer 0 interrupt
-    setb TR0  ; Start timer 0
+    setb ET0  		; Enable timer 0 interrupt
+    setb TR0  		; Start timer 0
 	ret
 
 
@@ -213,11 +210,11 @@ Timer0_Init:
 ; for timer 2                     ;
 ;---------------------------------;
 Timer2_Init:
-	mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
+	mov T2CON, #0 					; Stop timer/counter.  Autoreload mode.
 	mov TH2, #high(TIMER2_RELOAD)
 	mov TL2, #low(TIMER2_RELOAD)
 	; Set the reload value
-	orl T2MOD, #0x80 ; Enable timer 2 autoreload
+	orl T2MOD, #0x80 				; Enable timer 2 autoreload
 	mov RCMP2H, #high(TIMER2_RELOAD)
 	mov RCMP2L, #low(TIMER2_RELOAD)
 	; Init One millisecond interrupt counter.  It is a 16-bit variable made with two 8-bit parts
@@ -225,8 +222,8 @@ Timer2_Init:
 	mov Count1ms+0, a
 	mov Count1ms+1, a
 	; Enable the timer and interrupts
-	orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
-    setb TR2  ; Enable timer 2
+	orl EIE, #0x80 					; Enable timer 2 interrupt ET2=1
+    setb TR2  						; Enable timer 2
 	ret
 
 
@@ -276,9 +273,9 @@ inc_state_seconds:
 	mov a, state_seconds
 	add a, #0x01
 	mov state_seconds, a
-	;cjne a, #0x60, inc_seconds ;
-	;mov state_seconds, #0
-	;sjmp inc_minutes
+	; cjne a, #0x60, inc_seconds ;
+	; mov state_seconds, #0
+	; sjmp inc_minutes
 
 ; Increment System Timer
 inc_seconds:
@@ -383,11 +380,11 @@ Save_Variables:
 	ret
     
 Load_Variables:
-	mov dptr, #0x3f84  ; First key value location.  Must be 0x55
+	mov dptr, #0x3f84  	; First key value location.  Must be 0x55
 	clr a
 	movc a, @a+dptr
 	cjne a, #0x55, Load_Defaults
-	inc dptr      ; Second key value location.  Must be 0xaa
+	inc dptr      		; Second key value location.  Must be 0xaa
 	clr a
 	movc a, @a+dptr
 	cjne a, #0xaa, Load_Defaults
@@ -435,18 +432,20 @@ SendStringDone:
     ret	
 
 
-; Send a character using the serial port
+;--------------------------------------------;
+;   Send a character using the serial port   ;
+;--------------------------------------------;
 putchar:
     jnb TI, putchar
     clr TI
     mov SBUF, a
     ret
     
-;------------------------------------------------------------------------------;
-; Start of the code, runs through initialization then enters the infinite loop ;    
-;------------------------------------------------------------------------------;
+
+;----------------------------------------------------------------------------------;
+;   Start of the code, runs through initialization then enters the infinite loop   ;    
+;----------------------------------------------------------------------------------;
 main:
-	; Initialization
     mov SP, #0x7F
     mov P0M1, #0x00
     mov P0M2, #0x00
@@ -473,13 +472,27 @@ main:
     clr shiftpb
     clr error_flag
     clr mf
+	
+	; set state to 0 and clear LCD
+	mov fsm1_state #0
+	Set_Cursor(1, 1)
+    Send_Constant_String(#blank_message)
+	Set_Cursor(2, 1)
+    Send_Constant_String(#blank_message)
     
+
 ;-----------------------------------------------------------------------------------;
 ;   Displays the values of variables or current state depending on current state    ;
 ;           also main loop that loops infinitly after initialization                ;
 ;                    display -> math -> send_to_port -> fsm1                        ; 
 ;-----------------------------------------------------------------------------------; 
 display:                    ; display values to ** LCD **, landing from state machine jumps
+
+	;clr a
+    ;mov a, fsm1_state
+    ;cjne a, #0, display_state1 ; not;88888888888888888888888888888888
+
+
 	mov a, state_seconds    ; State Timer
 	mov b, #60 
 	div ab                  ; Divide State Seconds Count by 60
@@ -536,7 +549,7 @@ display_state2:
 
 display_state3:
     cjne a, #3, display_state4
-    Send_Constant_String(#ramp2peak_message)    ; put ""State: Ramp2Peak"" on screen
+    Send_Constant_String(#ramp2peak_message)    		; put ""State: Ramp2Peak"" on screen
     ljmp done_display
 
 display_state4:
@@ -591,20 +604,20 @@ Sum_loop0:
 	lcall div32
 
     ; Convert ADC reading to voltage value
-    load_Y(50980) ; Multiply VCC voltage measured (5.1)
+    load_Y(50980) 	; Multiply VCC voltage measured (5.1)
 	lcall mul32
-	load_Y(4095); Divide result by 4095
+	load_Y(4095)	; Divide result by 4095
 	lcall div32 
 
     ; Use 'magic number' to convert voltage to temperature 
 	; Resistors used: R1 ~= 21.6kOhm, R2 ~= 97.75kOhm   
-	load_Y(111465) ; 111.4646
-	lcall mul32 ; multiply by 1000000/(R1/R2 * 40.6)
+	load_Y(111465) 	; 111.4646
+	lcall mul32 	; multiply by 1000000/(R1/R2 * 40.6)
 	load_Y(1000)
 	lcall div32 
     load_Y(220000)
-    lcall add32 ; Add 22 V (amb temp)
-    ; x now has temp
+    lcall add32 	; Add 22 V (amb temp)
+    				; x now has temp
 
     ; Put temperature into 'temp' variable
     mov a, x 
@@ -616,9 +629,6 @@ Sum_loop0:
     Set_Cursor(1, 2)
     Display_BCD(bcd+3)
 	Display_BCD(bcd+2)
-	; Display_char(#'.')
-	; Display_BCD(bcd+1)
-	; Display_BCD(bcd+0)
     Set_Cursor(1,1)
     Display_char(#'T')
     Set_Cursor(1,2)
@@ -632,55 +642,68 @@ ljmp send_to_port
 ;-------------------------------;
 ;   Send temp to serial port    ;
 ;-------------------------------;
-
 send_to_port:
     ; Port readings should be: xxxx.xx\n (temp.state)
     ;                          12345678
     Send_BCD(bcd+3)                 ; 12
     Send_BCD(bcd+2)                 ; 34
     mov DPTR, #Dot          
-    lcall SendString                      ; 5
+    lcall SendString                ; 5
     Send_BCD(fsm1_state)            ; 67
     mov DPTR, #New_Line 
-    lcall SendString                      ; 8
+    lcall SendString                ; 8
     ljmp fsm1    
+
 
 ;------------------------------------------------;
 ; State machine for each stage of reflow process ;
 ;------------------------------------------------;  
 fsm1:
-    mov a, fsm1_state   ; movs the variable value of what state we are in to the accumulator
+    mov a, fsm1_state   ; movs the variable value of what state we are in to the accumulator		
 
 ;-----------------------
 chillin: ; state 0, "waiting" for a button push to start, 
          ; this is when the reflow profile need to be settable elsewhere
-    cjne a, #0, launchpad2   ; compare #0 and current state number (in a) jump to next state if not meant to be in state 0
+    cjne a, #0, launchpad2   	; compare #0 and current state number (in a) jump to next state if not meant to be in state 0
     mov pwm, #0
+	ljmp cont1
 launchpad2:
 	ljmp ramp2soak
-	
-    lcall Load_Variables    ; Get the old variable values stored in flash memory
+
+
+cont1:
+    lcall Load_Variables    	; Get the old variable values stored in flash memory
 
     ; update variables with buttons
-    ADC_to_PB(setup_flag, incdec_flag, temprefl_flag, timerfl_flag, tempsoak_flag, timesoak_flag, pwm_flag)
-    jnb setup_flag, setupskip
+    ADC_to_PB(setup_flag, incdec_flag, temprefl_flag, timerfl_flag, tempsoak_flag, timesoak_flag)
+    jnb setup_flag, launchpad3
+	ljmp cont
+launchpad3:
+	ljmp setupskip
+
+cont:
     ADC_incdec(shiftpb)
-    jnb shiftpb, setupskip ; if they didn't press the shiftpb, we skip these functions :,(
+    jnb shiftpb, launchpad3 ; if they didn't press the shiftpb, we skip these functions :,(
     TempSoakSet(tempsoak, tempsoak_flag, incdec_flag)  ; calls macros to update settable variables
     TimeSoakSet(timesoak, timesoak_flag, incdec_flag)  ; |
-    temprflSet(temprefl, temprefl_flag, incdec_flag)    ;|
-    TimeRflSet(timerefl, timerefl_flag, incdec_flag)     ; -
+    TempRflSet(temprefl, temprefl_flag, incdec_flag)   ; |
+    TimeRflSet(timerefl, timerefl_flag, incdec_flag)   ; -
 
-    lcall Save_Variables ; Save the new values into flash memory
+    lcall Save_Variables 							; Save the new values into flash memory
 
-    CMPTempTime(state_seconds, temp, error_flag) ; updates error_flag based on whether time >= 60 and temp < 50
+    CMPTempTime(state_seconds, temp, error_flag) 	; updates error_flag based on whether time >= 60 and temp < 50
+	jnb error_flag, temp_fine						; jumps to error state if "error_flag" set
+	ljmp error
 
-    setupskip:
-    jb pwm_flag, chillin_done      ; keep looping if button not pushed, using panic button as on/off
-    jnb pwm_flag, $                ; debounce
-    mov fsm1_state, #1             ; set state to soak
+
+temp_fine:
+
+setupskip:
+    jb panic_button, chillin_done      	; keep looping if button not pushed, using panic button as on/off
+    jnb panic_button, $                	; debounce
+    mov fsm1_state, #1             		; set state to soak
 chillin_done:   
-    ljmp display                   ; loops to display and updates display
+    ljmp display                  		; loops to display and updates display
                       
 ;-----------------------
 ramp2soak: ; Heat up from 0, leave if temp<50 after 1min -> error
@@ -708,6 +731,7 @@ soak: ; Keep temp relatively stable, leave after "timesoak" seconds -> ramp2peak
     mov state_seconds, #0   ; reset state state_seconds
 soak_done:
     ljmp display
+	
 ;-----------------------
 ramp2peak:
     cjne a, #3, reflow
@@ -749,7 +773,8 @@ cooling_done:
 
 ;-----------------------
 error: ; exited on error, stuck in this state until "panic button" pressed
-    ; display some error message
+    ; **** display some error message ****
+
     mov pwm, #0             ; oven off
     jb panic_button, error  ; if "panic_button" not pressed, stuck here
     jnb panic_button, $     ; debounce
