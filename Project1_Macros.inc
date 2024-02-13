@@ -273,7 +273,7 @@ ENDMAC
 ;------------------------------------------------------;
 ; TimeRflSet										   ;
 ; function: set TimeRfl		   						   ;
-; parameters: timerfl, timerfl (FLAG), incdec (FLAG) ;	
+; parameters: timerfl, timerfl (FLAG), incdec (FLAG)   ;	
 ;------------------------------------------------------;
 TimeRflSet MAC
 		jnb %1, endTimeRflSet%M ;exit if controller not set to adjust timerfl
