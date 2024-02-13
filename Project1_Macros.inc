@@ -1,31 +1,4 @@
 cseg
-
-;##COPIED FROM LCD_4bit.inc##
-;---------------------------------;
-; Wait 'R2' milliseconds          ;
-;---------------------------------;
-Wait_Milli_Seconds mac
-	push AR2
-	mov R2, %0
-	lcall ?Wait_Milli_Seconds
-	pop AR2
-endmac
-
-;---------------------------------;
-; Wait 'R2' milliseconds          ;
-;---------------------------------;
-?Wait_Milli_Seconds:
-    push AR0
-    push AR1
-L3: mov R1, #40
-L2: mov R0, #104
-L1: djnz R0, L1 ; 4 cycles->4*60.24ns*104=25.0us
-    djnz R1, L2 ; 25us*40=1.0ms
-    djnz R2, L3 ; number of millisecons to wait passed in R2
-    pop AR1
-    pop AR0
-    ret
-
 ;##CUSTOM MACROS##
 ;----------------------------------------------------------;
 ; ADC MUXED BUTTONS                                        ;
@@ -45,7 +18,7 @@ L1: djnz R0, L1 ; 4 cycles->4*60.24ns*104=25.0us
 
 ADC_to_PB MAC
 	anl ADCCON0, #0xF0
-	orl ADCCON0, #0x00 ; Select AIN0
+	orl ADCCON0, #0x01 ; Select AIN1
 	
 	clr ADCF
 	setb ADCS   ; ADC start trigger signal
@@ -119,7 +92,7 @@ ADC_to_pbdone%M:
 ;---------------------------------------;
 ADC_incdec MAC
 	anl ADCCON0, #0xF0
-	orl ADCCON0, #0x00 ; Select AIN0
+	orl ADCCON0, #0x01 ; Select AIN1
 	
 	clr ADCF
 	setb ADCS   ; ADC start trigger signal
