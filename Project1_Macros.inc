@@ -35,7 +35,7 @@ ADC_to_setup_pb%M:
 ADC_to_incdec_pb%M:
 	clr c
 	mov a, ADCRH 	;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0x6E 	;if 0x50 > ADRH, carry = 1 (negative num), incDECpb not pressed
+	subb a, #0x6E 	;if 0x6E > ADRH, carry = 1 (negative num), incdecpb not pressed
 	jc ADC_to_temprfl_pb%M
 	cpl %1
 
@@ -84,7 +84,7 @@ ADC_to_pbdone%M:
 ; shiftpb								;
 ;---------------------------------------;
 ADC_incdec MAC
-	mov ADCCON0, #0xF1 ; Select AIN0
+	mov ADCCON0, #0xF1 ; Select AIN1
 	
 	clr ADCF
 	setb ADCS   ; ADC start trigger signal
@@ -185,7 +185,7 @@ TimeRflSet MAC
         sjmp endTimeRflSet%M
 
 	increaseTimeR%M:
-		subb a, #045
+		subb a, #45
 		jz endTimeRflSet%M ;if timerfl = to 45, do not increase
 		inc %0
 endTimeRflSet%M:
