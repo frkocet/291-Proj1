@@ -2,6 +2,23 @@ $NOLIST
 $MODN76E003
 $LIST
 
+
+;-------------------;
+;   vector jumps    ;
+;-------------------;
+; Reset vector
+org 0x0000
+    ljmp main
+
+; Timer/Counter 0 overflow interrupt vector
+;org 0x000B
+	;ljmp Timer0_ISR     ;we dont use this i think?
+
+; Timer/Counter 2 overflow interrupt vector
+org 0x002B
+	ljmp Timer2_ISR
+
+
 ;---------------------------;
 ;   LCD Display Preview     ;
 ;---------------------------;
@@ -58,22 +75,6 @@ BAUD          EQU 115200                        ; Baud rate of UART in bps
 PAGE_ERASE_AP   EQU 00100010b
 BYTE_PROGRAM_AP EQU 00100001b
 
-
-;-------------------;
-;   vector jumps    ;
-;-------------------;
-; Reset vector
-org 0x0000
-    ljmp main
-
-; Timer/Counter 0 overflow interrupt vector
-org 0x000B
-	ljmp Timer0_ISR
-
-; Timer/Counter 2 overflow interrupt vector
-org 0x002B
-	ljmp Timer2_ISR
-
     
 ;-----------------------------------;
 ;   variable register definitions   ;
@@ -87,6 +88,7 @@ DSEG at 0x30
 	y:        ds 4
 	bcd:      ds 5
     VLED_ADC: ds 2
+	Count1ms: ds 14 
     
   ; these used for settable variables, make sure values over 10 still work
     fsm1_state: ds 13 ; state variable for fsm1
@@ -118,6 +120,8 @@ pwm_flag:       dbit 1 ; start/stop switch, 0 if start, 1 if stop
 shiftpb:        dbit 1 ; button to increase and decrease the counters                                  
 error_flag:     dbit 1 ; set to one if an error occurs
 mf:             dbit 1 
+seconds_flag:   dbit 1
+timerefl_flag:  dbit 1
 
 
 ;-------------------;
@@ -430,6 +434,13 @@ SendString:
 SendStringDone:
     ret	
 
+
+; Send a character using the serial port
+putchar:
+    jnb TI, putchar
+    clr TI
+    mov SBUF, a
+    ret
     
 ;------------------------------------------------------------------------------;
 ; Start of the code, runs through initialization then enters the infinite loop ;    
@@ -509,35 +520,37 @@ display:                    ; display values to ** LCD **, landing from state ma
 
     ; displays formatting "s , r"
     Set_Cursor(2, 1)
-    Send_Constant_String(#stable_message) ; do last to overwrite zeros
-    sjmp done_display
+    Send_Constant_String(#format_message) ; do last to overwrite zeros
+    ljmp done_display
 
 display_state1:
     Set_Cursor(2, 1)                                    ; set the cursor position for messages
     cjne a, #1, display_state2              
     Send_Constant_String(#ramp2soak_message)            ; put ""State: Ramp2Soak"" on screen
-    sjmp done_display
+    ljmp done_display
 
 display_state2:
     cjne a, #2, display_state3
     Send_Constant_String(#soak_message)                 ; put ""State: Soak"" on screen
-    sjmp done_display
+    ljmp done_display
 
 display_state3:
     cjne a, #3, display_state4
-    Send_Constant_String(#ramp2peak_message_message)    ; put ""State: Ramp2Peak"" on screen
-    sjmp done_display
+    Send_Constant_String(#ramp2peak_message)    ; put ""State: Ramp2Peak"" on screen
+    ljmp done_display
 
 display_state4:
     cjne a, #4, display_state5
     Send_Constant_String(#reflow_message)               ;  put ""State: Reflow"" on screen
-    sjmp done_display
+    ljmp done_display
 
 display_state5:
-    cjne a, #5, error
+    cjne a, #5, launchpad1
     Send_Constant_String(#cooling_message)              ; put ""State: Cooling"" on screen
-    sjmp done_display
-
+    ljmp done_display
+launchpad1:
+	ljmp error
+	
 done_display:
     ljmp math
 
@@ -641,9 +654,11 @@ fsm1:
 ;-----------------------
 chillin: ; state 0, "waiting" for a button push to start, 
          ; this is when the reflow profile need to be settable elsewhere
-    cjne a, #0, ramp2soak   ; compare #0 and current state number (in a) jump to next state if not meant to be in state 0
+    cjne a, #0, launchpad2   ; compare #0 and current state number (in a) jump to next state if not meant to be in state 0
     mov pwm, #0
-
+launchpad2:
+	ljmp ramp2soak
+	
     lcall Load_Variables    ; Get the old variable values stored in flash memory
 
     ; update variables with buttons
