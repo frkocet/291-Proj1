@@ -18,7 +18,8 @@ cseg
 ;ADC VALUES: 249, 492, 6DB, 924, B6D, DB6, FFF
 
 ADC_to_PB MAC
-	mov ADCCON0, #0xF1
+	mov a, #0xF1
+	mov ADCCON0, a
 	
 	clr ADCF
 	setb ADCS   ; ADC start trigger signal
@@ -73,7 +74,8 @@ ADC_to_timesoak_pb%M:
 	
 ADC_to_pbdone%M:
 	; No pushbutton pressed	or all buttons checked
-	mov ADCCON0, #0xF7
+	mov a, #0xF7
+	mov ADCCON0, a
 	ENDMAC
 
 ;---------------------------------------;
@@ -84,7 +86,8 @@ ADC_to_pbdone%M:
 ; shiftpb								;
 ;---------------------------------------;
 ADC_incdec MAC
-	mov ADCCON0, #0xF1 ; Select AIN1
+	mov a, #0xF1
+	mov ADCCON0, a ; Select AIN1
 	
 	clr ADCF
 	setb ADCS   ; ADC start trigger signal
@@ -100,7 +103,8 @@ ADC_to_shift_pb%M:
 	setb %0
 
 ADC_to_shiftpbdone%M:
-mov ADCCON0, #0xF7
+mov a, #0xF7
+mov ADCCON0, a
 ENDMAC
 
 ;------------------------------------------------------;
@@ -220,3 +224,4 @@ CMPTempTime MAC
 
 CMPTempTime_done%M:
 ENDMAC
+
