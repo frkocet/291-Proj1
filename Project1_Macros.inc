@@ -198,24 +198,25 @@ ENDMAC
 ; parameters: state_seconds, temp, error (flag)		   ;	
 ;------------------------------------------------------;
 CMPTempTime MAC
-clr c
-mov a, %0
-subb a, #60
+	clr c
+	mov a, %0
+	subb a, #60
 
-jnz SafetyNet%M; jump if time != 60 
-SafetyNet%M:
-jnc NoError%M; jump if time !> 60
+	jnz SafetyNet%M ;jump if time != 60 
+	
+	SafetyNet%M:
+		jnc NoError%M ;jump if time !> 60
 
-CheckTemp%M:
-clr c
-mov a, %1 
-subb a, #49
-jc NoError%M; jump if temp > 49C
-setb %2
-sjmp CMPTempTime_done%M
+	CheckTemp%M:
+		clr c
+		mov a, %1 
+		subb a, #49
+		jc NoError%M ;jump if temp > 49C
+		setb %2
+		sjmp CMPTempTime_done%M
 
-NoError%M:
-clr %2 ;sets flag to zero if no error (or no error yet)
+	NoError%M:
+		clr %2 ;sets flag to zero if no error (or no error yet)
 
 CMPTempTime_done%M:
 ENDMAC
