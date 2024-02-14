@@ -15,7 +15,7 @@ cseg
 ; setup, incdec, temprfl, timerfl, 		;
 ; tempsoak, timesoak					;
 ;---------------------------------------;
-;ADC VALUES: 249, 492, 6EF, 924, B6D, DB6, FFF
+;ADC VALUES: 249, 492, 6DB, 924, B6D, DB6, FFF
 
 ADC_to_PB MAC
 	mov ADCCON0, #0xF1
@@ -27,7 +27,7 @@ ADC_to_PB MAC
 ADC_to_setup_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x49
+	subb a, #0x48
 	jc ADC_to_incdec_pb%M
 	cpl %0
 
@@ -35,7 +35,7 @@ ADC_to_setup_pb%M:
 ADC_to_incdec_pb%M:
 	clr c
 	mov a, ADCRH 	;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0x6E 	;if 0x6E > ADRH, carry = 1 (negative num), incdecpb not pressed
+	subb a, #0x6B	;if 0x6B > ADRH, carry = 1 (negative num), incdecpb not pressed
 	jc ADC_to_temprfl_pb%M
 	cpl %1
 
@@ -43,7 +43,7 @@ ADC_to_incdec_pb%M:
 ADC_to_temprfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0x92
+	subb a, #0x8F
 	jc ADC_to_timerfl_pb%M
 	cpl %2
 
@@ -51,7 +51,7 @@ ADC_to_temprfl_pb%M:
 ADC_to_timerfl_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xB6
+	subb a, #0xB4
 	jc ADC_to_tempsoak_pb%M
 	cpl %3
 
@@ -59,7 +59,7 @@ ADC_to_timerfl_pb%M:
 ADC_to_tempsoak_pb%M:
 	clr c
 	mov a, ADCRH
-	subb a, #0xDB
+	subb a, #0xD9
 	jc ADC_to_timesoak_pb%M
 	cpl %4
 
