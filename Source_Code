@@ -1098,6 +1098,3 @@ error_done:
 
     ljmp display
 END
-error_done:
-    ljmp display
-END
