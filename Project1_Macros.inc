@@ -8,125 +8,125 @@ cseg
 ;----------------------------------------------------------;
 
 ;---------------------------------------;
-; ADC_to_PB                             ;
-; stores values of pb connected to AIN0 ;
-; EXCEPT: shiftpb						;
+; ADC_to_varpb                          ;
+; stores variable pbs connected to AIN0 ;
 ; parameters (flags):					;
-; setup, incdec, temprfl, timerfl, 		;
-; tempsoak, timesoak					;
+; temprefl, timerefl, tempsoak,  		;
+; timesoak								;
 ;---------------------------------------;
 ;ADC VALUES: 249, 492, 6DB, 924, B6D, DB6, FFF
 
-ADC_to_PB MAC
-	mov a, #0xF1
-	mov ADCCON0, a
-	
-	clr ADCF
-	setb ADCS   ; ADC start trigger signal
-    jnb ADCF, $ ; Wait for conversion complete
+ADC_to_varpb MAC
+	push acc
+	push psw
+		mov a, #0xF1
+		mov ADCCON0, a
+		
+		clr ADCF
+		setb ADCS   ; ADC start trigger signal
+		jnb ADCF, $ ; Wait for conversion complete
 
-ADC_to_setup_pb%M:
-	clr c
-	mov a, ADCRH
-	subb a, #0x48
-	jc ADC_to_incdec_pb%M
-	cpl %0
+		; Check temprfl_pb
+	ADC_to_temprfl_pb%M:
+		clr c
+		mov a, ADCRH
+		subb a, #0x98
+		jc ADC_to_timerfl_pb%M
+		cpl %0
 
-	;check incdecpb
-ADC_to_incdec_pb%M:
-	clr c
-	mov a, ADCRH 	;ADRH: ADC result 8 high bits, since all lower bits are the same between each voltage val
-	subb a, #0x6B	;if 0x6B > ADRH, carry = 1 (negative num), incdecpb not pressed
-	jc ADC_to_temprfl_pb%M
-	cpl %1
+		; Check timerfl_pb
+	ADC_to_timerfl_pb%M:
+		clr c
+		mov a, ADCRH
+		subb a, #0x65
+		jc ADC_to_tempsoak_pb%M
+		cpl %1
 
-	; Check temprfl_pb
-ADC_to_temprfl_pb%M:
-	clr c
-	mov a, ADCRH
-	subb a, #0x8F
-	jc ADC_to_timerfl_pb%M
-	cpl %2
+		; Check tempsoak_pb
+	ADC_to_tempsoak_pb%M:
+		clr c
+		mov a, ADCRH
+		subb a, #0xFF
+		jc ADC_to_timesoak_pb%M
+		cpl %2
 
-	; Check timerfl_pb
-ADC_to_timerfl_pb%M:
-	clr c
-	mov a, ADCRH
-	subb a, #0xB4
-	jc ADC_to_tempsoak_pb%M
-	cpl %3
-
-	; Check tempsoak_pb
-ADC_to_tempsoak_pb%M:
-	clr c
-	mov a, ADCRH
-	subb a, #0xD9
-	jc ADC_to_timesoak_pb%M
-	cpl %4
-
-	; Check timesoak_pb
-ADC_to_timesoak_pb%M:
-	clr c
-	mov a, ADCRH
-	subb a, #0xFF
-	jc ADC_to_pbdone%M
-	cpl %5
-	
-ADC_to_pbdone%M:
-	; No pushbutton pressed	or all buttons checked
-	mov a, #0xF7
-	mov ADCCON0, a
+		; Check timesoak_pb
+	ADC_to_timesoak_pb%M:
+		clr c
+		mov a, ADCRH
+		subb a, #0xCB
+		jc ADC_to_pbdone%M
+		cpl %3
+		
+	ADC_to_pbdone%M:
+		; No pushbutton pressed	or all buttons checked
+		mov a, #0xF7
+		mov ADCCON0, a
+	pop psw
+	pop acc
 	ENDMAC
 
 ;---------------------------------------;
-; ADC_incdec                            ;
-; store val of SHIFTPB connected to 	;
-; AIN0									;
+; ADC_idpb                        		;
+; store val of idpb connected to 		;
+; AIN1									;
 ; parameters (flags):					;
-; shiftpb								;
+; idpb									;
 ;---------------------------------------;
-ADC_incdec MAC
-	mov a, #0xF1
-	mov ADCCON0, a ; Select AIN1
-	
-	clr ADCF
-	setb ADCS   ; ADC start trigger signal
-    jnb ADCF, $ ; Wait for conversion complete
+ADC_idpb MAC
+	push acc
+	push psw
+		mov a, #0xF1
+		mov ADCCON0, a ; Select AIN1
+		
+		clr ADCF
+		setb ADCS   ; ADC start trigger signal
+		jnb ADCF, $ ; Wait for conversion complete
+		
 
-	clr %0
+	ADC_idpbskip%M:
+		clr c
+		mov a, ADCRH
+		subb a, #0x32
+		jc ADC_to_idpbdone%M
+		cpl %0
 
-ADC_to_shift_pb%M:
-	clr c
-	mov a, ADCRH
-	subb a, #0x24
-	jc ADC_to_shiftpbdone%M
-	setb %0
-
-ADC_to_shiftpbdone%M:
-mov a, #0xF7
-mov ADCCON0, a
+	ADC_to_idpbdone%M:
+	mov a, #0xF7
+	mov ADCCON0, a
+pop psw
+pop acc
 ENDMAC
 
 ;------------------------------------------------------;
 ; TempSoakSet                                   	   ;
 ; function: set TempSoak     						   ;
-; parameters: tempsoak, tempsoak (FLAG), incdec (FLAG) ;
+; parameters: tempsoak, tempsoak (FLAG), 			   ;
+; incdec (FLAG) 									   ;
 ;------------------------------------------------------;
 TempSoakSet MAC
-		jnb %2, endTempSoakSet%M ;exit if controller not set to adjust tempsoak
-
-		mov a, %1
-        jnb %2, increaseTempS%M ;if dec pb not pushed, increase tempsoak
-		subb a, #130
-        jz endTempSoakSet%M ;if tempsoak = to 130 (minimum temp), do not decrease
-        dec %0
+	push acc
+	push psw
+		clr c
+		jnb %1, endTempSoakSet%M ;exit if tempsoak pb not pressed
+        
+		jnb %2, increaseTempS%M ;if dec pb not pushed, increase tempsoak
+		
+		mov a, %0
+		subb a, #129
+		jnc endTempSoakSet%M ;if tempsoak = 130, do not decrease
+		dec %0
         sjmp endTempSoakSet%M
 
 	increaseTempS%M:
-		subb a, #170
-		jz endTempSoakSet%M ;if tempsoak = to 170, do not increase
+		clr c
+		mov a, %0
+		subb a, #169
+		jnc endTempSoakSet%M
 		inc %0
 endTempSoakSet%M:
+	pop psw
+	pop acc
 ENDMAC
 
 ;------------------------------------------------------;
@@ -135,93 +135,117 @@ ENDMAC
 ; parameters: timesoak, timesoak (FLAG), incdec (FLAG) ;	
 ;------------------------------------------------------;
 TimeSoakSet MAC
-		jnb %1, endTimeSoakSet%M ;exit if controller not set to adjust timesoak
+	push acc
+	push psw
+		jnb %1, endTimeSoakSet%M ;exit if timesoak not pressed
 
 		mov a, %0
 
-        jnb %2, increaseTimeS%M ;if dec pb not pushed, increase timesoak
-        jz endTimeSoakSet%M ;if timesoak = to 0 (minimum time), do not decrease
-        dec %0
+        jnb %2, increaseTimeS%M ;if incdec = 0, increase timesoak
+
+		jz endTimeSoakSet%M ;if timesoak = to 0 (minimum time), do not decrease
+        
+		dec %0
         sjmp endTimeSoakSet%M
 
 	increaseTimeS%M:
-		subb a, #60
-		jz endTimeSoakSet%M ;if timesoak = to 60, do not increase
+		subb a, #59
+		jnc endTimeSoakSet%M
 		inc %0
 endTimeSoakSet%M:
+	pop psw
+	pop acc
 ENDMAC
 
 ;------------------------------------------------------;
-; TempRflSet                                   	   	   ;
-; function: set TempRfl     						   ;
-; parameters: temprfl, temprfl (FLAG), incdec (FLAG)   ;
+; TempReflSet                                   	   ;
+; function: set TempRefl     						   ;
+; parameters: temprefl, temprefl (FLAG),  				;
+; incdec (FLAG)						
 ;------------------------------------------------------;
-TempRflSet MAC
-		jnb %1, endTempRflSet%M ;exit if controller not set to adjust temprfl
+TempReflSet MAC
+	push acc
+	push psw
+	
+		jnb %1, endTempReflSet%M ;exit if temprefl not pressed
 
-		mov a, %0
-        jnb %2, increaseTempR%M ;if dec pb not pushed, increase temprfl
-		subb a, #150
-        jz endTempRflSet%M ;if temprfl = to 150 (minimum temp), do not decrease
-        dec %0
-        sjmp endTempRflSet%M
+        jnb %2, increaseTempR%M ;if incdec = 0, increase temprefl
+		
+		clr c
+		mov a, %0 
+		subb a, #149
+        jnc endTempReflSet%M ;if temprefl != 150, decrease
+
+		decTempR%M:
+			dec %0
+        	sjmp endTempReflSet%M
 
 	increaseTempR%M:
-		subb a, #220
-		jz endTempRflSet%M ;if temprfl = to 220, do not increase
+		mov a, %0 
+		subb a, #219
+		jnc endTempReflSet%M ;if temprefl != 220, increase
+		
 		inc %0
-endTempRflSet%M:
+endTempReflSet%M:
+	pop psw
+	pop acc
 ENDMAC
 
 ;------------------------------------------------------;
-; TimeRflSet										   ;
-; function: set TimeRfl		   						   ;
-; parameters: timerfl, timerfl (FLAG), incdec (FLAG)   ;	
+; TimeReflSet										   ;
+; function: set TimeRefl		   					   ;
+; parameters: timerefl, timerefl (FLAG), incdec (FLAG) ;	
 ;------------------------------------------------------;
-TimeRflSet MAC
-		jnb %1, endTimeRflSet%M ;exit if controller not set to adjust timerfl
+TimeReflSet MAC
+	push acc
+	push psw
+		jnb %1, endTimeReflSet%M ;exit if timerefl not pressed
+
+        jnb %2, increaseTimeR%M ;if set to inc, increase timerefl
 
 		mov a, %0
-
-        jnb %2, increaseTimeR%M ;if set to inc, increase timerfl
-        jz endTimeRflSet%M ;if timerfl = to 0 (minimum time), do not decrease
-        dec %0
-        sjmp endTimeRflSet%M
+		jz endTimeReflSet%M ;if timerefl = 0 (minimum time), do not decrease
+        
+		dec %0
+        sjmp endTimeReflSet%M
 
 	increaseTimeR%M:
-		subb a, #45
-		jz endTimeRflSet%M ;if timerfl = to 45, do not increase
+		clr c
+		mov a, %0
+		subb a, #44
+		jnc endTimeReflSet%M ;if timerefl = 45, do not increase
+		
 		inc %0
-endTimeRflSet%M:
+endTimeReflSet%M:
+	pop psw
+	pop acc
 ENDMAC
 
 ;------------------------------------------------------;
 ; CMPTempTime										   ;
 ; function: make sure time != 60 and temp < 50, sets   ;
 ; flag if not										   ;
-; parameters: state_seconds, temp, error (flag)		   ;	
+; parameters: state_seconds, temp, error (flag)	   	   ;	
 ;------------------------------------------------------;
 CMPTempTime MAC
+	push acc
+	push psw
 	clr c
 	mov a, %0
 	subb a, #60
-
-	jnz SafetyNet%M ;jump if time != 60 
+	jc CMPTempTime_done%M
 	
-	SafetyNet%M:
-		jnc NoError%M ;jump if time !> 60
-
-	CheckTemp%M:
-		clr c
-		mov a, %1 
-		subb a, #49
-		jc NoError%M ;jump if temp > 49C
-		setb %2
-		sjmp CMPTempTime_done%M
+    clr c
+	mov a, %1 
+	subb a, #49
+	jnc NoError%M ;jump if temp > 49C
+	setb %2
+	sjmp CMPTempTime_done%M
 
 	NoError%M:
 		clr %2 ;sets flag to zero if no error (or no error yet)
 
 CMPTempTime_done%M:
+	pop psw
+	pop acc
 ENDMAC
-
