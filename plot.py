@@ -38,6 +38,8 @@ def data_gen():
     while True:
        t+=1
        strin = ser.readline()       # Read from port
+       strin = strin.rstrip()
+       strin = strin.decode()
        #strin = '0020.00'          # For testing
        parts = strin.split('.')     # Split temp.state
        val = int(parts[0])          # temp to val
