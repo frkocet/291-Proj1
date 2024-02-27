@@ -7,7 +7,6 @@ import serial
 from datetime import datetime
 from matplotlib import gridspec
 
-'''
 ser = serial.Serial(
 port='', # Port COM
 baudrate=115200,
@@ -16,7 +15,6 @@ stopbits=serial.STOPBITS_TWO,
 bytesize=serial.EIGHTBITS
 )
 ser.isOpen()
-'''
 
 global x_label_text, bird_size, bird_yposition
 xsize=100
@@ -34,12 +32,12 @@ def data_gen():
     t = data_gen.t
     while True:
        t+=1
-       # strin = ser.readline()       # Read from port
-       strin = '0020.00'          # For testing
+       strin = ser.readline()       # Read from port
+       #strin = '0020.00'          # For testing
        parts = strin.split('.')     # Split temp.state
-       #val = t # int(parts[0])          # temp to val
-       val = abs(250.0*math.sin(t*2.0*3.1415/100))
-       state = 0 # int(parts[1])        # state to state
+       val = int(parts[0])          # temp to val
+       #val = abs(250.0*math.sin(t*2.0*3.1415/100))
+       state = int(parts[1])        # state to state
        bird_velocity += gravity
        bird_yposition -= bird_velocity 
        bird_patch.set_center((t-20, bird_yposition))
@@ -77,22 +75,22 @@ def run(data):
         ax.set_facecolor('darkgrey')
         
         if(state == 0): # chillin state
-            ax.set_title('BING CHILLING', fontdict={'fontsize': 16, 'fontweight': 'bold','fontfamily':'Helvetica'})
+            ax.set_title('BING CHILLING', fontdict={'fontsize': 16, 'fontweight': 'bold'})
 
         if(state == 1): # ramp
-            ax.set_title('Ramp', fontdict={'fontsize': 16, 'fontweight': 'bold','fontfamily':'Helvetica'})
+            ax.set_title('Ramp', fontdict={'fontsize': 16, 'fontweight': 'bold'})
 
         if(state == 2): # soak
-            ax.set_title('Soak', fontdict={'fontsize': 16, 'fontweight': 'bold','fontfamily':'Helvetica'})
+            ax.set_title('Soak', fontdict={'fontsize': 16, 'fontweight': 'bold'})
 
         if(state == 3): # peak
-            ax.set_title('Peak', fontdict={'fontsize': 16, 'fontweight': 'bold','fontfamily':'Helvetica'})
+            ax.set_title('Peak', fontdict={'fontsize': 16, 'fontweight': 'bold'})
 
         if(state == 4): # reflow
-            ax.set_title('Reflow', fontdict={'fontsize': 16, 'fontweight': 'bold','fontfamily':'Helvetica'})
+            ax.set_title('Reflow', fontdict={'fontsize': 16, 'fontweight': 'bold'})
 
         if(state == 5): # coolin
-            ax.set_title('Cooling', fontdict={'fontsize': 16, 'fontweight': 'bold','fontfamily':'Helvetica'})
+            ax.set_title('Cooling', fontdict={'fontsize': 16, 'fontweight': 'bold'})
 
         line.set_data(xdata, ydata)
 
@@ -128,17 +126,17 @@ ax.set_ylim(0, 270)
 ax.set_xlim(0, xsize)
 ax.grid()
 xdata, ydata, statedata = [], [], []
-ax.set_xlabel(x_label_text,fontdict={'fontsize': 14, 'fontweight': 'bold','fontfamily':'Helvetica'})
-ax.set_ylabel('Temperature',fontdict={'fontsize': 14, 'fontweight': 'bold','fontfamily':'Helvetica'})
+ax.set_xlabel(x_label_text,fontdict={'fontsize': 14, 'fontweight': 'bold'})
+ax.set_ylabel('Temperature',fontdict={'fontsize': 14, 'fontweight': 'bold'})
 ax.set_facecolor('darkgray')
-clock_text = ax.text(0.5, 1.05, '', transform=ax.transAxes, fontdict={'fontsize': 12, 'fontweight': 'bold','fontfamily':'Helvetica'}, color='black', ha='center')
+clock_text = ax.text(0.5, 1.05, '', transform=ax.transAxes, fontdict={'fontsize': 12, 'fontweight': 'bold'}, color='black', ha='center')
 
 
 # Temperature bar subplot
 ax_temp_bar = plt.subplot(gs[1])
 ax_temp_bar.set_ylim(20, 250)  # Adjust the ylim based on your temperature range
 ax_temp_bar.set_xlim(0, 1)  # Adjust the xlim based on your temperature bar requirements
-ax_temp_bar.set_xlabel('Bar', fontdict={'fontsize': 12, 'fontweight': 'bold','fontfamily':'Helvetica'}, labelpad=10)
+ax_temp_bar.set_xlabel('Bar', fontdict={'fontsize': 12, 'fontweight': 'bold'}, labelpad=10)
 ax_temp_bar.set_xticks([])
 yticks_positions = np.arange(20, 260, 10) # Adjust as needed
 ax_temp_bar.set_yticks(yticks_positions)
@@ -148,5 +146,5 @@ ax.add_patch(bird_patch)
 
 # Important: Although blit=True makes graphing faster, we need blit=False to prevent
 # spurious lines to appear when resizing the stripchart.
-ani = animation.FuncAnimation(fig, run, data_gen, blit=False, interval=100, repeat=False)
+ani = animation.FuncAnimation(fig, run, data_gen, blit=False, interval=100, repeat=False, cache_frame_data=False)
 plt.show()
