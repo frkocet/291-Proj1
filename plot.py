@@ -20,15 +20,20 @@ global x_label_text, bird_size, bird_yposition
 xsize=100
 #background_img = plt.imread('background_image.png')
 x_label_text = 'Time'
+
+'''
 bird_size = 3
 bird_yposition = 100
 gravity = 2.2
 jump_velocity = 0.2
 initial_velocity = 0.0
 bird_velocity = 0
+'''
 
 def data_gen():
+    '''
     global bird_yposition, bird_velocity, gravity
+    '''
     t = data_gen.t
     while True:
        t+=1
@@ -38,19 +43,24 @@ def data_gen():
        val = int(parts[0])          # temp to val
        #val = abs(250.0*math.sin(t*2.0*3.1415/100))
        state = int(parts[1])        # state to state
+       '''
        bird_velocity += gravity
        bird_yposition -= bird_velocity 
        bird_patch.set_center((t-20, bird_yposition))
+       '''
        yield t, val, state
 
 def on_key(event):
     global x_label_text, bird_size, bird_yposition, bird_velocity
+    
+    '''
     if event.key == ' ':
         x_label_text = 'Time'
         bird_yposition += 20
         ax.set_xlabel(x_label_text)
         bird_velocity = 0
         fig.canvas.draw()
+        '''
 
 def run(data):
     # update the data
@@ -103,8 +113,10 @@ def run(data):
             if patch.get_y() > y-25:
                 patch.remove()  # Remove the previous patch
 
+        '''
         current_time = datetime.now().strftime('%H:%M:%S')
         clock_text.set_text(f'Time: {current_time}')
+        '''
             
     return line, clock_text
 
@@ -141,8 +153,10 @@ ax_temp_bar.set_xticks([])
 yticks_positions = np.arange(20, 260, 10) # Adjust as needed
 ax_temp_bar.set_yticks(yticks_positions)
 
+'''
 bird_patch = plt.Circle((0, bird_yposition), bird_size, color='orange')
 ax.add_patch(bird_patch)
+'''
 
 # Important: Although blit=True makes graphing faster, we need blit=False to prevent
 # spurious lines to appear when resizing the stripchart.
