@@ -70,19 +70,13 @@ $LIST
 
 
 CLK           EQU 16600000                      ; Microcontroller system frequency in Hz
-TIMER0_RATE   EQU 4096                          ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
 TIMER0_RELOAD EQU ((65536-(CLK/TIMER0_RATE)))
 TIMER2_RATE   EQU 1000                          ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD EQU ((65536-(CLK/TIMER2_RATE)))
 BAUD          EQU 115200                        ; Baud rate of UART in bps
 PAGE_ERASE_AP   EQU 00100010b
 BYTE_PROGRAM_AP EQU 00100001b
-
-    
-;CLK               EQU 16600000 ; Microcontroller system frequency in Hz
-;AUD              EQU 115200 ; Baud rate of UART in bps
 TIMER1_RELOAD     EQU (0x100-(CLK/(16*BAUD)))
-;TIMER0_RELOAD_1MS EQU (0x10000-(CLK/1000))
 
 
 ;-----------------------------------;
@@ -95,7 +89,9 @@ DSEG at 0x30
 	y:        ds 4
 	bcd:      ds 5
     VLED_ADC: ds 2
-	Count1ms: ds 1 
+	Count1ms: ds 2
+	Count10ms:ds 2
+	serial_counter: ds 1
     
   ; these used for settable variables, make sure values over 10 still work
     fsm1_state: ds 1 ; state variable for fsm1 (FUCKING CURSED VARIABLE DONT TOUCH IT)
@@ -145,6 +141,7 @@ LCD_D6          equ P0.2
 LCD_D7          equ P0.3
 PWM_OUT         equ P1.0
 panic_button    equ P1.6
+FSM2            equ P1.5
 
 
 
@@ -202,6 +199,10 @@ r: 						DB 'r'				 , 0
 comma:					DB ','               , 0
 here: 					DB 'I AM HERE'       , 0
 space:					DB ' '               , 0
+stop1:					DB 'stop 1'           , 0
+stop2:					DB 'stop 2'           , 0
+stop3:					DB 'stop 3'           , 0
+stop4:					DB 'stop 4'           , 0
  
 
 ;messages for checking
@@ -253,8 +254,8 @@ Timer2_Init:
 	mov RCMP2L, #low(TIMER2_RELOAD)
 	; Init One millisecond interrupt counter.  It is a 16-bit variable made with two 8-bit parts
 	clr a
-	mov Count1ms+0, a
-	mov Count1ms+1, a
+	;mov Count1ms+0, a
+	;mov Count1ms+1, a
 	; Enable the timer and interrupts
 	orl EIE, #0x80 					; Enable timer 2 interrupt ET2=1
     setb TR2  						; Enable timer 2
@@ -266,32 +267,42 @@ Timer2_Init:
 ;---------------------------------;
 Timer2_ISR:
 	clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in the ISR.  It is bit addressable.
-	cpl P0.4 ; To check the interrupt rate with oscilloscope. It must be precisely a 1 ms pulse.
+	;cpl P0.4 ; To check the interrupt rate with oscilloscope. It must be precisely a 1 ms pulse.
 	
 	; The two registers used in the ISR must be saved in the stack
 	push acc
 	push psw
 	
-	; Increment the 16-bit one mili second counter
-	inc Count1ms+0    ; Increment the low 8-bits first
-	mov a, Count1ms+0 ; If the low 8-bits overflow, then increment high 8-bits
-	jnz Inc_Done
-	inc Count1ms+1
-	inc pwm_counter
 
+ 	inc Count10ms
+	mov a, Count10ms
+	cjne a, #10, SkipPwm
+	clr a
+	mov Count10ms, a
+	
 	; PWM_OUT -> (P1.0) Connected to the oven
+	inc pwm_counter
 	clr c                   ; clear carry
 	mov a, pwm              ; percentage of oven on to a
 	subb a, pwm_counter     ; If pwm_counter <= pwm then c = 1
 	cpl c 
 	mov PWM_OUT, c          ; logic 1 = oven on
 	mov a, pwm_counter
-	cjne a, #100, Inc_Done  ; if pwm counter = 100 reset
+	cjne a, #100, SkipPwm  ; if pwm counter = 100 reset
 	mov pwm_counter, #0     ; reset if counter at 100
+
+
+SkipPwm:
+; Increment the 16-bit one mili second counter
+	inc Count1ms+0    ; Increment the low 8-bits first
+	mov a, Count1ms+0 ; If the low 8-bits overflow, then increment high 8-bits
+	jnz Inc_Done
+	inc Count1ms+1
+
 
 Inc_Done:
 	mov a, Count1ms+0
-	cjne a, #low(1000), Timer2_ISR_done ; Warning: this instruction changes the carry flag!
+	cjne a, #low(1000), Timer2_ISR_done 
 	mov a, Count1ms+1
 	cjne a, #high(1000), Timer2_ISR_done
 
@@ -303,28 +314,25 @@ Inc_Done:
 	mov Count1ms+1, a
 	; Increment the seconds
 	mov a, seconds
-	;jnb UPDOWN, Timer2_ISR_decrement
 	add a, #0x01
 	sjmp Timer2_ISR_da
 Timer2_ISR_da:
-	da a ; Decimal adjust instruction.  Check datasheet for more details!
+	da a 
 	mov seconds, a
 	clr a
 	inc state_seconds
-	mov a, state_seconds
-	da a
-	mov state_seconds, a
+;	mov a, state_seconds
+	;da a
+	;mov state_seconds, a
 	
 	mov a, seconds
-	cjne a, #0x60, Timer2_ISR_done ;resert at 60 seconds
+	cjne a, #0x60, Timer2_ISR_done ;reset at 60 seconds
 	clr a
 	mov seconds, a
 	mov a, minutes
-	add a, #1
+	add a, #0x01
 	mov minutes, a
-	cjne a, #0x05, Timer2_ISR_done ;reset at 5 minutes
-	clr a
-	mov minutes, a
+	
 	
 Timer2_ISR_done:
 
@@ -332,39 +340,6 @@ Timer2_ISR_done:
 	pop psw
 	pop acc
 	reti
-
-; Increment State Seconds
-;inc_state_seconds:
-;	mov a, state_seconds
-;	add a, #0x01
-;	mov state_seconds, a
-;	cjne a, #0x60, inc_seconds ;
-;	mov state_seconds, #0
-;	sjmp inc_minutes
-
-; Increment System Timer
-;inc_seconds:
-;	mov a, seconds
-;	add a, #0x01
-;	da a ; this instruction works only after the add or addc instructions
-;	mov seconds, a
-;	cjne a, #0x60, Timer2_ISR_done ;
- ;   mov seconds, #0 	
-;	sjmp inc_minutes
-
-;inc_minutes:
-;	mov a, minutes
-;	add a, #0x01
-;	da a ; this instruction works only after the add or addc instructions
-;	mov minutes, a
-;	cjne a, #0x60, Timer2_ISR_done ; 
-;	mov minutes, #0
-
-;Timer2_ISR_done:
-;	pop psw
-;	pop acc
-;	reti    
-
 
 ;-------------------------------------------;
 ;   save varibles in non-volatile memory    ;
@@ -509,7 +484,6 @@ putchar:
 ;----------------------------------------------------------------------------------;
 ;   Start of the code, runs through initialization then enters the infinite loop   ;    
 ;----------------------------------------------------------------------------------;
-	
 
 main:
 	clr a
@@ -517,6 +491,7 @@ main:
 	mov minutes, a
 	mov state_seconds, a
 	mov state_var, a
+	setb FSM2
     mov SP, #0x7F
     mov P0M1, #0x00
     mov P0M2, #0x00
@@ -542,17 +517,11 @@ main:
     clr mf
 
 	;initial variables
-	;mov tempsoak, #0x30
-	mov tempsoak, #0x96 ;130
-
-	;mov timesoak, #0x30
-	mov timesoak, #0x05
-
-	;mov temprefl, #0x30
-	mov temprefl, #0x82 ;150
-
-	;mov timerefl, #0x30
-	mov timerefl, #0x05
+	
+	mov tempsoak, #150 ;130
+	mov timesoak, #60
+	mov temprefl, #200
+	mov timerefl, #45
 
 
 	; set state to 0 and clear LCD
@@ -568,12 +537,12 @@ main:
 ;   Displays the values of variables or current state depending on current state    ;
 ;           also main loop that loops infinitly after initialization                ;
 ;                    display -> math -> send_to_port -> fsm1                        ; 
-;-----------------------------------------------------------------------------------; 
+;---------------------------------------------------- fc-------------------------------; 
 display:
 
 	clr a
     mov a, state_var
-    Set_Cursor(1,8)
+;    Set_Cursor(1,8)
    ; Display_BCD(state_var)
 	;sjmp display
     cjne a, #0, launchpad4
@@ -618,12 +587,12 @@ skip4:
 	Display_BCD(bcd+1)
 	Display_BCD(bcd)
 
-	mov DPTR, #tempsoak_msg
-	lcall SendString
-	Send_BCD (bcd+1)
-	Send_BCD (bcd+0)
-	mov DPTR, #new_line
-	lcall SendString
+;	mov DPTR, #tempsoak_msg
+;	lcall SendString
+;	Send_BCD (bcd+1)
+;	Send_BCD (bcd+0)
+;	mov DPTR, #new_line
+;	lcall SendString
     
 	clr a
 	mov x+0, #0x00
@@ -634,13 +603,13 @@ skip4:
 	lcall hex2bcd
 	Set_Cursor(2,6)
 	Display_BCD(bcd)
-	Send_BCD (bcd)
+;	Send_BCD (bcd)
 
-	mov DPTR, #timesoak_msg
-	lcall SendString
-	Send_BCD (bcd)
-	mov DPTR, #new_line
-	lcall SendString
+;	mov DPTR, #timesoak_msg
+;	lcall SendString
+;	Send_BCD (bcd)
+;	mov DPTR, #new_line
+;	lcall SendString
 
     ; display reflow time and temp
 	clr a
@@ -654,12 +623,12 @@ skip4:
 	Display_BCD(bcd+1)
 	Display_BCD(bcd)
 
-	mov DPTR, #temprefl_msg
-	lcall SendString
-	Send_BCD (bcd+1)
-	Send_BCD (bcd+0)
-	mov DPTR, #new_line
-	lcall SendString
+;	mov DPTR, #temprefl_msg
+;	lcall SendString
+;	Send_BCD (bcd+1)
+;	Send_BCD (bcd+0)
+;	mov DPTR, #new_line
+;	lcall SendString
 
 	clr a
 	mov x+0, #0x00
@@ -671,11 +640,11 @@ skip4:
 	Set_Cursor(2,14)
 	Display_BCD(bcd)
 
-	mov DPTR, #timerefl_msg
-	lcall SendString
-	Send_BCD (bcd)
-	mov DPTR, #new_line
-	lcall SendString
+;	mov DPTR, #timerefl_msg
+;	lcall SendString
+;	Send_BCD (bcd)
+;	mov DPTR, #new_line
+;	lcall SendString
 
 
     ; displays formatting "s , r"
@@ -692,18 +661,22 @@ skip4:
 	Set_Cursor(2, 13)
 	Send_Constant_String(#comma)
 	mov seconds, #0
-	Wait_Milli_Seconds(#70)
+;	Wait_Milli_Seconds(#70)
 
     ljmp done_display
 
 	
 
 display_state1:	 	
-	;ljmp skip4
-	Set_Cursor(1, 12)       ;display time
+	Set_Cursor(1, 11)  	;display time
+	Display_BCD(minutes)
+	Set_Cursor(1, 13)
+	Display_char(#':')
+	Set_Cursor(1, 14)      
 	Display_BCD(seconds)
-    Set_Cursor(2, 1)                              ; set the cursor position for messages
 
+
+    Set_Cursor(2, 1)                              ; set the cursor position for messages
     cjne a, #1, display_state2              
     Send_Constant_String(#ramp2soak_message)         ; put ""State: Ramp2Soak"" on screen
     ljmp done_display
@@ -788,60 +761,25 @@ Sum_loop0:
     load_Y(220000)
     lcall add32 	; Add 22 V (amb temp)
     ; x now has temp
-
-	;Set_Cursor(1,7)
-	;Display_BCD(x+4)
-	;Display_BCD(x+3)
-	;Display_BCD(x+2)
-	;Display_BCD(x+1)
-	;Display_BCD(x+0)
-    ; Put temperature into 'temp' variable
-	;Display_BCD(a)
+	
 
     ; Display temperature on LCD
     ; Looks like T:022C          
     lcall hex2bcd
-    Set_Cursor(1, 2)
+    Set_Cursor(1, 3)
     Display_BCD(bcd+3)
 	Display_BCD(bcd+2)
-    Set_Cursor(1,1)
+    Set_Cursor(1, 2)
     Display_char(#'T')
-    Set_Cursor(1,2)
+    Set_Cursor(1, 3)
     Display_char(#':')
-    Set_Cursor(1,6)
+    Set_Cursor(1, 7)
     Display_char(#'C')
-     
-    ;mov temp+0, bcd+2
-	;mov temp+1, bcd+3
 
 	lcall bcd2hex ;in theory temp is now in x in hex
 
-	Set_Cursor(1,8)
-	;Display_BCD(x+4)
-	;Display_HEX(x+3)
-	;Display_HEX(x+2)
-	;Display_HEX(x+1)
-	;Display_HEX(x+0)
-	
-	;mov x+4, #0
 	load_y(10000)
 	lcall div32
-
-	;Display_BCD(x+2)
-	;Display_BCD(x+1)
-	Display_BCD(x+0)
-
-    ;mov a, bcd+3
-    ;mov x+0, a
-    ;mov x+1, #0
-    ;mov x+2, #0
-    ;mov x+3, #0
-    ;Load_y(#10000)
-    ;lcall mul32
-    
-    ;mov a, bcd+2
-    ;Set_Cursor(1, 12)
-    ;Display_BCD(a)
     
 	ljmp send_to_port
 
@@ -852,11 +790,18 @@ Sum_loop0:
 send_to_port:
     ; Port readings should be: xxxx.xx\n (temp.state)
     ;                          12345678
-    Send_BCD(bcd+3)                 ; 12
-    Send_BCD(bcd+2)                 ; 34
+	mov a, serial_counter
+	cjne a, #40, fsm1
+	mov serial_counter, #0
+actually_send_to_port:	
+	lcall hex2bcd
+    Send_BCD(bcd+1)                 ; 12
+    Send_BCD(bcd+0)                 ; 34
     mov DPTR, #Dot          
     lcall SendString                ; 5
-    Send_BCD(fsm1_state)            ; 67
+	Send_BCD(state_var)            ; 67
+	lcall bcd2hex
+
     mov DPTR, #New_Line 
     lcall SendString                ; 8
     ljmp fsm1    
@@ -866,7 +811,7 @@ send_to_port:
 ; State machine for each stage of reflow process ;
 ;------------------------------------------------;  
 fsm1:
-	
+	inc serial_counter
 	clr a
     mov a, state_var   ; movs the variable value of what state we are in to the accumulator	
 ;-----------------------
@@ -897,144 +842,157 @@ chillin: ; state 0, "waiting" for a button push to start,
 launchpad2:
 	jb panic_button, launchpad5
 	jnb panic_button, $
-	mov DPTR, #panic
-	lcall SendString
+;	mov DPTR, #panic
+;	lcall SendString
 	ljmp error
 launchpad5:
 	ljmp ramp2soak
 cont1:	
 
-	mov DPTR, #state_chillin
-	lcall SendString
+;	mov DPTR, #state_chillin
+;	lcall SendString
 
 
     ;lcall Load_Variables    	; Get the old variable values stored in flash memory
 
     ; update variables with buttons
-	ADC_idpb(incdec_flag)
+    lcall ADC_to_varpb
 	Wait_Milli_Seconds(#50) ;wait 50ms between readings
-
-    ADC_to_varpb(temprefl_flag, timerefl_flag, tempsoak_flag, timesoak_flag)
+	
+	mov a, #0xF7
+	mov ADCCON0, a
 
 cont:	
 	;UPDATE SETTABLE VARIABLES
 
-
 	TempSoakSet(tempsoak,tempsoak_flag,incdec_flag)
-
-
     TimeSoakSet(timesoak,timesoak_flag,incdec_flag)
-	
-
     TempReflSet(temprefl,temprefl_flag,incdec_flag)
-
-
     TimeReflSet(timerefl,timerefl_flag,incdec_flag)
-
 
 	Wait_Milli_Seconds(#50) ;wait 50ms between readings
 	
     ;lcall Save_Variables 							; Save the new values into flash memory
 
-setupskip:	
-	;CMPTempTime(state_seconds, temp, error_flag) 	; updates error_flag based on whether time >= 60 and temp < 50
-	jnb error_flag, temp_fine						; jumps to error state if "error_flag" set	
-	ljmp error
-	
-temp_fine:
+
+
 
     jb panic_button, chillin_done      	; keep looping if button not pushed, using panic button as on/off
     jnb panic_button, $                	; debounce
     mov state_var, #1           		; set state to soak
+
+	clr FSM2
+	Wait_Milli_Seconds(#250)
+	Wait_Milli_Seconds(#250)
+	setb FSM2
+
+	mov state_seconds, #0
+	mov minutes, #0
 chillin_done:   
     ljmp display                  		; loops to display and updates display
-                      
+
+
 ;-----------------------
 ramp2soak: ; Heat up from 0, leave if temp<50 after 1min -> error
            ; leave after temp="tempsoak" -> soak
     
 
+	;CMPTempTime(minutes, x+0, error_flag) 	; updates error_flag based on whether time >= 60 and temp < 50
+	lcall CMPTempTime2
+	jnb error_flag, temp_fine						; jumps to error state if "error_flag" set	
+	ljmp error
+temp_fine:
 
-	Send_BCD(a)	
-	;mov DPTR, #new_line
-	;lcall SendString
-	;lcall SendString
-	;mov a, state_var
-	;Set_Cursor(1,1)
-    ;Display_BCD(a)
-    ;sjmp ramp2soak	   
+	mov a, state_var  
     cjne a, #1, soak 
 	mov DPTR, #state_r2s
     mov pwm, #100           ; oven on
     mov a, tempsoak         
     clr c                   ; clear carry
     subb a, x+0            ; "tempsoak" - "temp"
-
-	
-
-	Set_Cursor(1,14)
-	Display_BCD(temp)
-
-    ;jnc ramp2soak_done      ; jump if result is not negative, ie. if temp < "tempsoak"
+    jnc ramp2soak_done      ; jump if result is not negative, ie. if temp < "tempsoak"
 
     mov state_var, #2     ; set state to soak since "temp" > "tempsoak"
-    mov state_seconds, #0   ; reset state state_seconds
+    
+	clr FSM2
+	Wait_Milli_Seconds(#250)
+	Wait_Milli_Seconds(#250)
+	setb FSM2
+
+	mov state_seconds, #0   ; reset state state_seconds
 ramp2soak_done:
     ljmp display           
+
 
 ;-----------------------
 soak: ; Keep temp relatively stable, leave after "timesoak" seconds -> ramp2peak
     cjne a, #2, ramp2peak
 
+;	mov DPTR, #state_s
+;	lcall SendString
 
-	mov DPTR, #state_s
-	lcall SendString
-
-
-    mov pwm, #20            ; oven on 20% of the time
+    mov pwm, #20           ; oven on 20% of the time
     mov a, timesoak     
     clr c
     subb a, state_seconds   ; "timesoak" - "state_seconds"
     jnc soak_done           ; stay in this state if "state_seconds" < "timesoak"
     mov state_var, #3      ; set state to ramp2peak
+
+	clr FSM2
+	Wait_Milli_Seconds(#250)
+	Wait_Milli_Seconds(#250)
+	setb FSM2
+
     mov state_seconds, #0   ; reset state state_seconds
 soak_done:
     ljmp display
 	
+
 ;-----------------------
 ramp2peak:
     cjne a, #3, reflow
 
 
-	mov DPTR, #state_r2p
-	lcall SendString
+;	mov DPTR, #state_r2p
+;	lcall SendString
 
 
     mov pwm, #100           ; oven on
     mov a, temprefl  ; this wont work because tempprefl is 2 bytes
     clr c
-    subb a, x+0            ; "temprefl" - "temp" (won't work be)
+    subb a, x+0            ; "temprefl" - "temp" 
     jnc ramp2peak_done      ; stay in this state if "temp" < "temprefl" 
     mov state_var, #4    ; set state to reflow
+
+	clr FSM2
+	Wait_Milli_Seconds(#250)
+	Wait_Milli_Seconds(#250)
+	setb FSM2
+
     mov state_seconds, #0
 ramp2peak_done:
     ljmp display
+
 
 ;-----------------------
 reflow:
     cjne a, #4, cooling
 
+;	mov DPTR, #state_r
+;   lcall SendString
 
-	mov DPTR, #state_r;;;;;;;;;;;;;
-    lcall SendString
-
-
-    mov pwm, #30
+    mov pwm, #20
     mov a, timerefl
     clr c
     subb a, state_seconds   ; "timerefl"- "state_seconds"
     jnc reflow_done
     mov state_var, #5      ; set state to cooling
+
+	clr FSM2
+	Wait_Milli_Seconds(#250)
+	Wait_Milli_Seconds(#250)
+	setb FSM2
+
     mov state_seconds, #0
 reflow_done:
     ljmp display
@@ -1044,13 +1002,13 @@ cooling:
     cjne a, #5, no_mas       ; error because this should not happen,        ## check here if going to error randomly ###
 	sjmp cont2
 no_mas:
-	mov DPTR, #nomas;;;;;;;;;;;;;
-    lcall SendString
+;	mov DPTR, #nomas
+;   lcall SendString
 	ljmp error
 cont2:
 
-	mov DPTR, #state_c;;;;;;;;;;;;;
-    lcall SendString
+;	mov DPTR, #state_c
+;   lcall SendString
 	;WriteCommand(#0x01)
 
 	Set_Cursor(1, 1)
@@ -1059,9 +1017,9 @@ cont2:
     Send_Constant_String(#blank_message)
 
     mov pwm, #0             ; oven off
-    mov a, temp          
+    mov a, x+0          
     clr c 
-    subb a, #0x60           ; ### temp to stop cooling at, change later ###
+    subb a, #0x3C           ; ### temp to stop cooling at, change later ###
     jnc cooling_done        ; done cooling if "temp" - "60" < 0
     ;WriteCommand(#0x01)
 
@@ -1071,8 +1029,16 @@ cont2:
     Send_Constant_String(#blank_message)
 
 	
-    mov state_var, #0      ; change from #6 as #6 is error state
+    mov state_var, #0
+
+	clr FSM2
+	Wait_Milli_Seconds(#250)
+	Wait_Milli_Seconds(#250)
+	setb FSM2
+
     mov state_seconds, #0
+	mov seconds, #0
+	mov minutes, #0
 cooling_done:
 	;WriteCommand(#0x01)
     ljmp display
@@ -1082,11 +1048,12 @@ error: ; exited on error, stuck in this state until "panic button" pressed
     Set_Cursor(2, 1)
     Send_Constant_String(#error_message)
 
-    mov pwm, #0x00             ; oven off
+    mov pwm, #0             ; oven off
     jb panic_button, error  ; if "panic_button" not pressed, stuck here
     jnb panic_button, $     ; debounce
     mov state_var, #0     	; go back to chillin state
     mov state_seconds, #0
+	mov minutes, #0
     clr error_flag
 error_done:
 	;WriteCommand(#0x01)
