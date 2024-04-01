@@ -163,27 +163,42 @@ void PrintNumber(long int val, int Base, int digits)
 //Example (assuming positive x right in direction and y is up)
 // driveMotors(5, 5), would drive the car up and turn it
 //PWM1 controls
-void driveMotors (unsigned int x, unsigned int y)
+void driveMotors (unsigned float x, unsigned float y)
 {
-	if(y > 2.5){ //Forward
-		PWM1 = 100; //off
-		PWM3 = 50;  //square wave test speed
+	int speedX = abs(5-x)*20;
+	int speedY = abs(5-y)*20;
+	if(y > 2.5 && x > 2.5){ //Forward right
+		PWM1 = 0; //off
+		PWM3 = speedY;  //square wave test speed
 
-		PWM2 = 100; //off
-		PWM4 = 50; //square wave test speed
-	}else{
-		PWM1 = 100; //off
-		PWM3 = 100;  //square wave test speed
+		PWM2 = 0; //off
+		PWM4 = speedY+speedX; //square wave test speed
+	}else if(y >= 2.5 && x <= 2.5){ //Forward left and Straight Forward
+		PWM1 = 0; //off
+		PWM3 = speedY+speedX;  //square wave test speed
 
-		PWM2 = 100; //off
-		PWM4 = 100; //square wave test speed
+		PWM2 = 0; //off
+		PWM4 = speedY; //square wave test speed
+
+	}else if(y < 2.5 && x > 2.5){ //Backward Right
+		PWM3 = 0;
+		PWM1 = speedY;
+
+		PWM4 = 0;
+		PWM2 = speedY +speedX;
+	}else if(y<=2.5 && x <= 2.5){ //Backward Left and Left
+		PWM3 = 0;
+		PWM1 = speedY + speedX;
+
+		PWM4 = 0;
+		PWM2 = speedY;
 	}
 }
 
 void main (void)
 {
-	int x_1 = 2.5;
-	int y_1 = 4;
+	float x_1 = 2.5;
+	float y_1 = 4;
 	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
 	printf("Square wave generator for the F38x.\r\n"
 	       "Check pins P2.0 and P2.1 with the oscilloscope.\r\n");
