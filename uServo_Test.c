@@ -12,6 +12,8 @@
 
 #define OUT0 P2_0 //MOTOR pin
 #define OUT1 P2_1 //MOTOR pin
+#define OUT2 P1_9 //MOTOR pin
+#define OUT3 P1_8 //MOTOR pin
 #define DEFAULT_F 15500L
 
 #define COLPITTS P1_5
@@ -22,6 +24,11 @@
 #define RELOAD_10us (0x10000L-(SYSCLK/(12L*100000L))) // 10us rate
 
 volatile unsigned char pwm_count=0;
+
+volatile unsigned int PWM1=100;
+volatile unsigned int PWM2=100;
+volatile unsigned int PWM3=100;
+volatile unsigned int PWM4=100;
 
 char _c51_external_startup (void)
 {
@@ -98,13 +105,6 @@ char _c51_external_startup (void)
 	TMR2=0xffff;   // Set to reload immediately
 	ET2=1;         // Enable Timer2 interrupts
 	TR2=1;         // Start Timer2
-
-	// Initialize timer 5 for periodic interrupts
-	SFRPAGE=0x10;
-	TMR5CN0=0x00;
-	TMR5=0xffff;   // Set to reload immediately
-	EIE2|=0b_0000_1000; // Enable Timer5 interrupts
-	TR5=1;         // Start Timer5 (TMR5CN0 is bit addressable)
 	
 	EA=1;
 	
@@ -113,68 +113,83 @@ char _c51_external_startup (void)
 	return 0;
 }
 
-void Timer2_ISR (void) interrupt INTERRUPT_TIMER2
+void Timer2_ISR (void) interrupt 5
 {
 	TF2H = 0; // Clear Timer2 interrupt flag
 	
 	pwm_count++;
 	if(pwm_count>100) pwm_count=0;
 	
-	OUT0=pwm_count>50?0:1;
-	OUT1=pwm_count>75?0:1;
+	OUT0=pwm_count>PWM1?0:1;
+	OUT1=pwm_count>PWM2?0:1;
+	OUT2=pwm_count>PWM3?0:1;
+	OUT3=pwm_count>PWM4?0:1;
 }
 
-*/
-// Uses Timer3 to delay <us> micro-seconds. 
-void Timer3us(unsigned char us)
-{
-	unsigned char i;               // usec counter
-	
-	// The input for Timer 3 is selected as SYSCLK by setting T3ML (bit 6) of CKCON0:
-	CKCON0|=0b_0100_0000;
-	
-	TMR3RL = (-(SYSCLK)/1000000L); // Set Timer3 to overflow in 1us.
-	TMR3 = TMR3RL;                 // Initialize Timer3 for first overflow
-	
-	TMR3CN0 = 0x04;                 // Sart Timer3 and clear overflow flag
-	for (i = 0; i < us; i++)       // Count <us> overflows
+void eputs(char *String)
+{	
+	while(*String)
 	{
-		while (!(TMR3CN0 & 0x80));  // Wait for overflow
-		TMR3CN0 &= ~(0x80);         // Clear overflow indicator
+		putchar(*String);
+		String++;
 	}
-	TMR3CN0 = 0 ;                   // Stop Timer3 and clear overflow flag
 }
 
-void waitms (unsigned int ms)
-{
-	unsigned int j;
-	for(j=ms; j!=0; j--)
+void PrintNumber(long int val, int Base, int digits)
+{ 
+	code const char HexDigit[]="0123456789ABCDEF";
+	int j;
+	#define NBITS 32
+	xdata char buff[NBITS+1];
+	buff[NBITS]=0;
+	
+	if(val<0)
 	{
-		Timer3us(249);
-		Timer3us(249);
-		Timer3us(249);
-		Timer3us(250);
+		putchar('-');
+		val*=-1;
 	}
+
+	j=NBITS-1;
+	while ( (val>0) | (digits>0) )
+	{
+		buff[j--]=HexDigit[val%Base];
+		val/=Base;
+		if(digits!=0) digits--;
+	}
+	eputs(&buff[j+1]);
 }
+
 //Drive motors from x and y coordinate inputs from serial monitor. 
 //Example (assuming positive x right in direction and y is up)
-// driveMotors(1000, 1000), would drive the car up and turn it
-/*
+// driveMotors(5, 5), would drive the car up and turn it
+//PWM1 controls
 void driveMotors (unsigned int x, unsigned int y)
 {
-	if(y > 2.5){
-		//This might be in the incorrect order, 
-		OUT0 = 0;
+	if(y > 2.5){ //Forward
+		PWM1 = 100; //off
+		PWM3 = 50;  //square wave test speed
+
+		PWM2 = 100; //off
+		PWM4 = 50; //square wave test speed
+	}else{
+		PWM1 = 100; //off
+		PWM3 = 100;  //square wave test speed
+
+		PWM2 = 100; //off
+		PWM4 = 100; //square wave test speed
 	}
 }
-*/
+
 void main (void)
 {
+	int x_1 = 2.5;
+	int y_1 = 4;
 	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
 	printf("Square wave generator for the F38x.\r\n"
 	       "Check pins P2.0 and P2.1 with the oscilloscope.\r\n");
 
 	while(1)
 	{
+		driveMotors(x_1, y_1);
 	}
 }
