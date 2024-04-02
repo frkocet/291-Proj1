@@ -10,10 +10,10 @@
 //volatile unsigned int servo_counter=0;
 //volatile unsigned char servo1=150, servo2=150;
 
-#define OUT0 P2_0 //MOTOR pin
-#define OUT1 P2_1 //MOTOR pin
-#define OUT2 P1_9 //MOTOR pin
-#define OUT3 P1_8 //MOTOR pin
+#define OUT0 P2_1 //MOTOR pin
+#define OUT1 P2_0 //MOTOR pin
+#define OUT2 P2_2 //MOTOR pin
+#define OUT3 P1_7 //MOTOR pin
 #define DEFAULT_F 15500L
 
 #define COLPITTS P1_5
@@ -120,10 +120,10 @@ void Timer2_ISR (void) interrupt 5
 	pwm_count++;
 	if(pwm_count>100) pwm_count=0;
 	
-	OUT0=pwm_count>PWM1?0:1;
-	OUT1=pwm_count>PWM2?0:1;
-	OUT2=pwm_count>PWM3?0:1;
-	OUT3=pwm_count>PWM4?0:1;
+	OUT0=pwm_count>PWM1?1:0;
+	OUT1=pwm_count>PWM2?1:0;
+	OUT2=pwm_count>PWM3?1:0;
+	OUT3=pwm_count>PWM4?1:0;
 }
 
 void eputs(char *String)
@@ -163,11 +163,11 @@ void PrintNumber(long int val, int Base, int digits)
 //Example (assuming positive x right in direction and y is up)
 // driveMotors(5, 5), would drive the car up and turn it
 //PWM1 controls
-void driveMotors (unsigned float x, unsigned float y)
+void driveMotors (float x, float y)
 {
-	int speedX = abs(5-x)*20;
-	int speedY = abs(5-y)*20;
-	if(y > 2.5 && x > 2.5){ //Forward right
+	int speedX = abs(2.5-x)*20;
+	int speedY = abs(2.5-y)*20;
+	if(y >= 2.5 && x >= 2.5){ //Forward right
 		PWM1 = 0; //off
 		PWM3 = speedY;  //square wave test speed
 
@@ -197,8 +197,8 @@ void driveMotors (unsigned float x, unsigned float y)
 
 void main (void)
 {
-	float x_1 = 2.5;
-	float y_1 = 4;
+	float x_1 = 5;
+	float y_1 = 2.5;
 	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
 	printf("Square wave generator for the F38x.\r\n"
 	       "Check pins P2.0 and P2.1 with the oscilloscope.\r\n");
