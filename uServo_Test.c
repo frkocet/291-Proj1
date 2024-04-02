@@ -163,35 +163,43 @@ void PrintNumber(long int val, int Base, int digits)
 //Example (assuming positive x right in direction and y is up)
 // driveMotors(5, 5), would drive the car up and turn it
 //PWM1 controls
+// Either edit for tolerance or add tolerance to the number we input into the system
+// 
 void driveMotors (float x, float y)
 {
-	int speedX = abs(2.5-x)*20;
-	int speedY = abs(2.5-y)*20;
+	int speedX = (2.5-x)*10.8;
+	int speedY = (2.5-y)*10.8;
+	if(speedX < 0){
+		speedX*=-1;
+	}
+	if(speedY < 0){
+		speedY*=-1;
+	}
 	if(y >= 2.5 && x >= 2.5){ //Forward right
 		PWM1 = 0; //off
-		PWM3 = speedY;  //square wave test speed
+		PWM3 = 50+speedY;  //square wave test speed
 
 		PWM2 = 0; //off
-		PWM4 = speedY+speedX; //square wave test speed
+		PWM4 = 50+speedY+speedX; //square wave test speed
 	}else if(y >= 2.5 && x <= 2.5){ //Forward left and Straight Forward
 		PWM1 = 0; //off
-		PWM3 = speedY+speedX;  //square wave test speed
+		PWM3 = 50+speedY+speedX;  //square wave test speed
 
 		PWM2 = 0; //off
-		PWM4 = speedY; //square wave test speed
+		PWM4 = 50+speedY; //square wave test speed
 
 	}else if(y < 2.5 && x > 2.5){ //Backward Right
 		PWM3 = 0;
-		PWM1 = speedY;
+		PWM1 = 50+speedY;
 
 		PWM4 = 0;
-		PWM2 = speedY +speedX;
-	}else if(y<2.5 && x < 2.5){ //Backward Left and Left
+		PWM2 = 50+speedY +speedX;
+	}else if(y<2.5 && x < 2.5){ //Backward Left
 		PWM3 = 0;
-		PWM1 = speedY + speedX;
+		PWM1 = 50+speedY + speedX;
 
 		PWM4 = 0;
-		PWM2 = speedY;
+		PWM2 = 50+speedY;
 	}
 }
 
