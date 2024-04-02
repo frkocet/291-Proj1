@@ -186,7 +186,7 @@ void driveMotors (float x, float y)
 
 		PWM4 = 0;
 		PWM2 = speedY +speedX;
-	}else if(y<=2.5 && x <= 2.5){ //Backward Left and Left
+	}else if(y<2.5 && x < 2.5){ //Backward Left and Left
 		PWM3 = 0;
 		PWM1 = speedY + speedX;
 
