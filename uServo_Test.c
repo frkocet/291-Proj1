@@ -10,14 +10,13 @@
 //volatile unsigned int servo_counter=0;
 //volatile unsigned char servo1=150, servo2=150;
 
-#define OUT0 P2_1 //MOTOR pin
-#define OUT1 P2_0 //MOTOR pin
+#define OUT0 P2_3 //MOTOR pin
+#define OUT1 P1_6 //MOTOR pin
 #define OUT2 P2_2 //MOTOR pin
 #define OUT3 P1_7 //MOTOR pin
 #define DEFAULT_F 15500L
 
 #define COLPITTS P1_5
-#define EMAGNET  P1_6
 
 #define SYSCLK 72000000L // SYSCLK frequency in Hz
 #define BAUDRATE 115200L
@@ -120,10 +119,10 @@ void Timer2_ISR (void) interrupt 5
 	pwm_count++;
 	if(pwm_count>100) pwm_count=0;
 	
-	OUT0=pwm_count>PWM1?1:0;
-	OUT1=pwm_count>PWM2?1:0;
-	OUT2=pwm_count>PWM3?1:0;
-	OUT3=pwm_count>PWM4?1:0;
+	OUT0=pwm_count>PWM1?0:1;
+	OUT1=pwm_count>PWM2?0:1;
+	OUT2=pwm_count>PWM3?0:1;
+	OUT3=pwm_count>PWM4?0:1;
 }
 
 void eputs(char *String)
@@ -164,49 +163,50 @@ void PrintNumber(long int val, int Base, int digits)
 // driveMotors(5, 5), would drive the car up and turn it
 //PWM1 controls
 // Either edit for tolerance or add tolerance to the number we input into the system
-// 
+// Sweet allah defend us from the wizard inshalla
 void driveMotors (float x, float y)
 {
-	int speedX = (2.5-x)*10.8;
-	int speedY = (2.5-y)*10.8;
+	int speedX = (2.5-x)*28;
+	int speedY = (2.5-y)*24;
 	if(speedX < 0){
 		speedX*=-1;
 	}
 	if(speedY < 0){
 		speedY*=-1;
 	}
-	if(y >= 2.5 && x >= 2.5){ //Forward right
-		PWM1 = 0; //off
-		PWM3 = 50+speedY;  //square wave test speed
-
-		PWM2 = 0; //off
-		PWM4 = 50+speedY+speedX; //square wave test speed
-	}else if(y >= 2.5 && x <= 2.5){ //Forward left and Straight Forward
-		PWM1 = 0; //off
-		PWM3 = 50+speedY+speedX;  //square wave test speed
-
-		PWM2 = 0; //off
-		PWM4 = 50+speedY; //square wave test speed
-
-	}else if(y < 2.5 && x > 2.5){ //Backward Right
+	if(y == 2.5 && x == 2.5){ //Neutral
 		PWM3 = 0;
-		PWM1 = 50+speedY;
-
+		PWM1 = 0;
 		PWM4 = 0;
-		PWM2 = 50+speedY +speedX;
-	}else if(y<2.5 && x < 2.5){ //Backward Left
+		PWM2 = 0;
+	}else if(y >= 2.5 && x >= 2.5){ //Forward right
 		PWM3 = 0;
-		PWM1 = 50+speedY + speedX;
-
+		PWM1 = speedX + speedY;
 		PWM4 = 0;
-		PWM2 = 50+speedY;
+		PWM2 = speedY + 2;
+	}else if(y >= 2.5 && x <= 2.5){ //Forward left
+		PWM3 = 0;
+		PWM1 = speedY;
+		PWM4 = 0;
+		PWM2 = speedX + speedY + 2;
+
+	}else if(y < 2.5 && x < 2.5){ //Backward Left
+		PWM3 = speedY;
+		PWM1 = 0;
+		PWM4 = speedX + speedY + 2;
+		PWM2 = 0;
+	}else if(y < 2.5 && x >= 2.5){ //Backward Right
+		PWM3 = speedX + speedY;
+		PWM1 = 0;
+		PWM4 = speedY + 2;
+		PWM2 = 0;
 	}
 }
 
 void main (void)
 {
-	float x_1 = 5;
-	float y_1 = 2.5;
+	float x_1 = 2.5;
+	float y_1 = 5;
 	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
 	printf("Square wave generator for the F38x.\r\n"
 	       "Check pins P2.0 and P2.1 with the oscilloscope.\r\n");
